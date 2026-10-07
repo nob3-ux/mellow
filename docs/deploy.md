@@ -79,6 +79,62 @@ scripts/build-release.sh                        ~/mellow-release.tar.gz
         └── images/                  ← 画像（WebP）
 ```
 
+### 3-1. tar.gz を置く場所
+
+アップロードする `mellow-release.tar.gz` は、**SSHでログインした直後の場所（ホームフォルダ `~`）** に置きます。ロリポップでは `/home/users/番号/アカウント名/` にあたり、公開フォルダ（`web/`）の1つ上の、外からは見えない場所です。
+
+手元のMacで次のように送れば、自動でそこに置かれます（`:~/` がホームフォルダの意味です）。
+
+```bash
+scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
+```
+
+> **FTPでは置かないでください。** FTPで見える一番上は `web/`（公開フォルダ）です。ここに置くと、tar.gz がインターネットから誰でもダウンロードできる状態になります（中身はサイトのプログラム一式。`.env` は含まれません）。
+
+tar.gz は置いただけでは使えません。**展開してから** `deploy.sh` を実行します（展開せずに実行すると「そのようなファイルはありません」というエラーになります）。
+
+```bash
+ssh -p 2222 アカウント名@ssh.lolipop.jp     # ホームフォルダに入る
+rm -rf mellow-release                       # 前回展開したものを消す（初回は不要）
+tar xzf mellow-release.tar.gz               # 展開 → ~/mellow-release/ ができる
+bash mellow-release/deploy.sh               # 配置（初回は --first を付ける）
+```
+
+### 3-2. deploy.sh がすること
+
+| 順 | 処理 | 内容 |
+|:-:|---|---|
+| 1 | PHPを探す | 8.4以上のPHPを自動で探す（`/usr/local/bin/php8.5` など）。見つからなければ止まる |
+| 2 | メンテナンス表示 | 2回目以降のみ。作業中にアクセスした人には「メンテナンス中」と表示される |
+| 3 | アプリ本体を配置 | `~/mellow-app/` のプログラム（app・config・resources・vendor など）を新しいものに入れ替える。**`.env` と `storage/`（ログ・セッション）はそのまま残す** |
+| 4 | 公開フォルダを配置 | `~/web/mellow/` に CSS/JS（`build/`）・画像・`index.php`・`.htaccess` を上書きコピーする（フォルダが無ければ作る） |
+| 5 | `.env` の確認 | `~/mellow-app/.env` が無ければ、ここで「作成してください」と表示して止まる（初回の1回目はここで止まるのが正常） |
+| 6 | データベースを更新 | テーブルの追加・変更があれば反映する。`--first` のときだけ初期データ（10月分の空き状況）も入れる |
+| 7 | キャッシュを作り直す | 設定・URL・画面のキャッシュを作り直す（`.env` の変更もここで反映される） |
+| 8 | 公開を再開 | メンテナンス表示を解除し、「✓ 配置が完了しました」と表示する |
+
+**実行前と実行後のフォルダ**
+
+```
+実行前                                実行後
+~/                                    ~/
+├── mellow-release.tar.gz             ├── mellow-release.tar.gz   （残る）
+├── mellow-release/  ← 展開したもの    ├── mellow-release/         （残る。次回 rm -rf で消す）
+└── web/                              ├── mellow-app/             ★アプリ本体（公開されない）
+    └── （WordPress）                 │   ├── .env                 （初回だけ手で作る。以後は触らない）
+                                      │   └── storage/             （ログ等。以後も残る）
+                                      └── web/
+                                          ├── （WordPress）         （そのまま）
+                                          └── mellow/              ★公開フォルダ
+```
+
+### 3-3. deploy.sh がしないこと
+
+- **公開フォルダの切り替え**：ps-mellow.jp をどのフォルダで表示するかは、ロリポップの管理画面（独自ドメイン設定）で、初回に1度だけ `mellow` に変更します（[4-8](#4-8-公開フォルダを切り替える)）。実行しただけでは、サイトの表示は切り替わりません。
+- **WordPress や `web/` 内の他のフォルダの変更・削除**
+- **管理者アカウントの作成**：初回に `admin:create mariko` を別途実行します（[4-7](#4-7-管理者アカウントを作る)）。
+- **tar.gz と展開したフォルダの削除**：次回の更新時に上書き・削除されるので、残しておいて問題ありません。
+
 ---
 
 ## 4. 初回の公開手順
@@ -130,6 +186,8 @@ scripts/build-release.sh
 | `deploy.sh` | （実行するだけ） | 上記の配置・データベース更新・キャッシュ作成を行うスクリプト |
 
 ### 4-4. アップロードして配置する（1回目）
+
+tar.gz を置く場所と、`deploy.sh` が何をするかは [3-1〜3-3](#3-1-targz-を置く場所) を参照してください。
 
 ```bash
 # 手元のMacから送る
@@ -285,7 +343,7 @@ rm -rf mellow-release && tar xzf mellow-release.tar.gz
 bash mellow-release/deploy.sh
 ```
 
-配置スクリプトは次のことを自動で行います。
+配置スクリプトは次のことを自動で行います（詳しくは [3-2](#3-2-deploysh-がすること)）。
 
 1. メンテナンス表示に切り替える（作業中にアクセスしたお客様には「メンテナンス中」と表示）
 2. アプリ本体と公開フォルダを入れ替える（**`.env` と `storage/`（ログ等）は残す**）
@@ -300,6 +358,7 @@ bash mellow-release/deploy.sh
 
 | 症状 | 主な原因と対処 |
 |---|---|
+| `bash mellow-release/deploy.sh` で「No such file or directory」 | tar.gz を展開していない、またはホームフォルダ以外にいる。`cd ~` してから `tar xzf mellow-release.tar.gz` を実行し、もう一度実行する（[3-1](#3-1-targz-を置く場所)）。 |
 | 「500 Server Error」と表示される | `~/mellow-app/storage/logs/` のログを確認する。よくある原因: `.env` の値の誤り・`APP_KEY` が空・PHPのバージョンが8.4未満（「PHP設定」を確認）。 |
 | 「メンテナンス中」のまま戻らない | 更新が途中で止まっています。`cd ~/mellow-app && /usr/local/bin/php8.5 artisan up` で解除し、エラー内容を確認して再実行する。 |
 | デザインが崩れる（文字だけになる） | `~/web/mellow/build/` が無い。手元で `build-release.sh` から作り直して配置する。 |
