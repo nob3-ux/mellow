@@ -13,23 +13,38 @@ class CreateAdminUserTest extends TestCase
 
     public function test_admin_account_is_created_and_password_can_be_changed(): void
     {
-        $this->artisan('admin:create', ['email' => 'staff@example.com'])
-            ->expectsQuestion('パスワード（12文字以上）', 'first-password-123')
+        $this->artisan('admin:create', ['username' => 'staff'])
+            ->expectsQuestion('パスワード（8文字以上）', 'first-pass')
             ->assertSuccessful();
 
-        $this->artisan('admin:create', ['email' => 'staff@example.com'])
-            ->expectsQuestion('パスワード（12文字以上）', 'second-password-456')
+        $this->artisan('admin:create', ['username' => 'staff'])
+            ->expectsQuestion('パスワード（8文字以上）', 'second-pass')
             ->expectsOutputToContain('パスワードを変更しました')
             ->assertSuccessful();
 
         $this->assertDatabaseCount('users', 1);
-        $this->assertTrue(Hash::check('second-password-456', User::firstWhere('email', 'staff@example.com')->password));
+        $this->assertTrue(Hash::check('second-pass', User::firstWhere('username', 'staff')->password));
     }
 
-    public function test_short_password_is_rejected(): void
+    public function test_created_account_can_log_in_with_username(): void
     {
-        $this->artisan('admin:create', ['email' => 'staff@example.com'])
-            ->expectsQuestion('パスワード（12文字以上）', 'short')
+        $this->artisan('admin:create', ['username' => 'staff'])
+            ->expectsQuestion('パスワード（8文字以上）', 'first-pass')
+            ->assertSuccessful();
+
+        $this->post(route('admin.login'), ['username' => 'staff', 'password' => 'first-pass'])
+            ->assertRedirect(route('admin.availabilities'));
+        $this->assertAuthenticated();
+    }
+
+    public function test_short_password_and_invalid_username_are_rejected(): void
+    {
+        $this->artisan('admin:create', ['username' => 'staff'])
+            ->expectsQuestion('パスワード（8文字以上）', 'short')
+            ->assertFailed();
+
+        $this->artisan('admin:create', ['username' => 'まりこ'])
+            ->expectsQuestion('パスワード（8文字以上）', 'long-enough-password')
             ->assertFailed();
 
         $this->assertDatabaseCount('users', 0);

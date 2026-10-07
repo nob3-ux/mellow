@@ -83,5 +83,5 @@ artisan up || true
 
 echo
 echo "✓ 配置が完了しました"
-$FIRST && echo "  管理者アカウントを作成してください: cd $APP_DIR && $PHP_BIN artisan admin:create メールアドレス"
+$FIRST && echo "  管理者アカウントを作成してください: cd $APP_DIR && $PHP_BIN artisan admin:create ユーザー名"
 exit 0

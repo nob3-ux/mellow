@@ -52,11 +52,27 @@ docker compose down       # 停止
 | Mailpit | http://localhost:8025 | フォームから送られたメールの確認（実際には送信されない） |
 | phpMyAdmin | http://localhost:8080 | データベースの中身を見る |
 
-手元の管理画面のアカウントは次のコマンドで作成・パスワード変更できます。
+### 管理画面のログイン情報
+
+| 項目 | 値 |
+|---|---|
+| ユーザー名 | `mariko` |
+| パスワード | 別途保管しているもの（この手順書には記載しない） |
+| ログイン画面 | 手元: http://localhost:8000/admin ／ 本番: https://ps-mellow.jp/admin |
+
+> このログイン情報は手元の開発環境に設定済みです。本番では、初回の公開時に同じ内容でアカウントを作成します（[deploy.md の 4-7](deploy.md#4-7-管理者アカウントを作る)）。
+> パスワードは、この手順書（GitHub に保存される）には書かず、手帳やパスワード管理アプリなどで別に保管してください。
+
+**パスワードを変更する・アカウントを追加する**
 
 ```bash
-docker compose exec app php artisan admin:create メールアドレス
+docker compose exec app php artisan admin:create mariko        # 手元（mariko のパスワードを変更）
 ```
+
+- 実行するとパスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。
+- 既にあるユーザー名を指定するとパスワードの変更、新しいユーザー名を指定するとアカウントの追加になります。
+- ユーザー名に使えるのは半角英数字・`-`・`_`（3〜50文字）です。
+- 本番では、サーバーにSSHで入って `cd ~/mellow-app && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
 
 ---
 

@@ -31,11 +31,11 @@ class AdminAvailabilityTest extends TestCase
     {
         $user = User::factory()->create(['password' => 'correct-horse-battery']);
 
-        $this->post(route('admin.login'), ['email' => $user->email, 'password' => 'wrong'])
-            ->assertSessionHasErrors('email');
+        $this->post(route('admin.login'), ['username' => $user->username, 'password' => 'wrong'])
+            ->assertSessionHasErrors('username');
         $this->assertGuest();
 
-        $this->post(route('admin.login'), ['email' => $user->email, 'password' => 'correct-horse-battery'])
+        $this->post(route('admin.login'), ['username' => $user->username, 'password' => 'correct-horse-battery'])
             ->assertRedirect(route('admin.availabilities'));
         $this->assertAuthenticatedAs($user);
 
@@ -50,11 +50,11 @@ class AdminAvailabilityTest extends TestCase
         $user = User::factory()->create(['password' => 'correct-horse-battery']);
 
         foreach (range(1, 5) as $_) {
-            $this->post(route('admin.login'), ['email' => $user->email, 'password' => 'wrong']);
+            $this->post(route('admin.login'), ['username' => $user->username, 'password' => 'wrong']);
         }
 
-        $this->post(route('admin.login'), ['email' => $user->email, 'password' => 'correct-horse-battery'])
-            ->assertSessionHasErrors('email');
+        $this->post(route('admin.login'), ['username' => $user->username, 'password' => 'correct-horse-battery'])
+            ->assertSessionHasErrors('username');
         $this->assertGuest();
     }
 

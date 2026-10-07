@@ -5,12 +5,12 @@
         <form method="post" action="{{ route('admin.login') }}" class="mt-6 space-y-5">
             @csrf
             <div>
-                <label for="email" class="text-sm text-brand-800">メールアドレス</label>
-                <input id="email" name="email" type="email" value="{{ old('email') }}" required autofocus autocomplete="username"
+                <label for="username" class="text-sm text-brand-800">ユーザー名</label>
+                <input id="username" name="username" type="text" value="{{ old('username') }}" required autofocus autocomplete="username" autocapitalize="none" spellcheck="false"
                        class="mt-1 block w-full rounded-sm border border-brand-300 px-3 py-2.5 focus:border-brand-700 focus:outline-none"
-                       @error('email') aria-invalid="true" aria-describedby="email-error" @enderror>
-                @error('email')
-                    <p id="email-error" class="mt-1.5 text-sm text-alert">{{ $message }}</p>
+                       @error('username') aria-invalid="true" aria-describedby="username-error" @enderror>
+                @error('username')
+                    <p id="username-error" class="mt-1.5 text-sm text-alert">{{ $message }}</p>
                 @enderror
             </div>
             <div>

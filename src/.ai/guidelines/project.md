@@ -30,7 +30,7 @@
 ## 空き状況（独自カレンダー）
 
 - 空き枠は `availabilities` テーブル（1行 = 1日の午前 `am` または午後 `pm` が「空きあり」）。モデル `App\Models\Availability`、枠は `App\Enums\Slot`。
-- スタッフは `/admin`（ログイン必須）で切り替える。管理者アカウントは `php artisan admin:create <メール>` で作成・パスワード変更する。
+- スタッフは `/admin`（ログイン必須）で切り替える。管理者アカウントは `php artisan admin:create <ユーザー名>`（ログインはユーザー名＋パスワード） で作成・パスワード変更する。
 - 公開側は `/api/schedule` から、本日〜 `config('site.schedule_months_ahead')` ヶ月先の月末までを取得して表示する。
 - 予約フォームの申し込みと空き枠は連動しない（日程確定後にスタッフが管理画面で枠を外す運用）。
 

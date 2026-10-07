@@ -230,11 +230,12 @@ bash ~/mellow-release/deploy.sh --first
 
 ```bash
 cd ~/mellow-app
-/usr/local/bin/php8.5 artisan admin:create info@ps-mellow.jp
+/usr/local/bin/php8.5 artisan admin:create mariko
 ```
 
 - `php8.5` のパスは 4-2 で表示された方を使ってください（`/usr/local/php/8.5/bin/php artisan ...` の場合もあります）。
-- パスワード（12文字以上）の入力を求められます。入力した文字は「•」で表示されます。
+- パスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。決めたパスワード（[editing.md の「管理画面のログイン情報」](editing.md#管理画面のログイン情報)）を入力してください。
+- ログインはユーザー名（`mariko`）とパスワードで行います。
 - 管理画面は `https://ps-mellow.jp/admin` です（切り替え後に使えます）。
 
 ### 4-8. 公開フォルダを切り替える
@@ -307,7 +308,7 @@ bash mellow-release/deploy.sh
 | フォーム送信や管理画面の保存が「403 Forbidden」になる | ロリポップの **WAF**（不正アクセス防止機能）が送信内容を誤って遮断している可能性がある。ユーザー専用ページの「WAF設定」でログを確認する。 |
 | 管理画面で「ログインの有効期限が切れました」 | ページを再読み込みして再ログイン。頻発する場合は `APP_URL` が `https://` になっているか確認。 |
 | `.env` を変えたのに反映されない | `cd ~/mellow-app && /usr/local/bin/php8.5 artisan optimize` を実行する（設定のキャッシュを作り直す）。 |
-| 管理者のパスワードを忘れた | `artisan admin:create 登録したメールアドレス` を実行すると再設定できる（4-7と同じ）。 |
+| 管理者のパスワードを忘れた | `artisan admin:create mariko` を実行すると再設定できる（4-7と同じ）。 |
 | `deploy.sh` が「PHP 8.4.1 以上が見つかりません」 | 「PHP設定」で 8.4 以上にしたか確認。場所が特殊な場合は `PHP=/path/to/php bash mellow-release/deploy.sh` で指定できる。 |
 
 ログの場所: `~/mellow-app/storage/logs/laravel-YYYY-MM-DD.log`

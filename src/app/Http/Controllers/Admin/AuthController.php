@@ -21,16 +21,16 @@ class AuthController extends Controller
     public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'username' => ['required', 'string', 'max:50'],
             'password' => ['required', 'string'],
-        ], [], ['email' => 'メールアドレス', 'password' => 'パスワード']);
+        ], [], ['username' => 'ユーザー名', 'password' => 'パスワード']);
 
-        // 総当たり対策: 同じメールアドレス・IPからの失敗は5回まで（1分ごとにリセット）
-        $key = Str::lower($credentials['email']).'|'.$request->ip();
+        // 総当たり対策: 同じユーザー名・IPからの失敗は5回まで（1分ごとにリセット）
+        $key = Str::lower($credentials['username']).'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
             throw ValidationException::withMessages([
-                'email' => 'ログインの試行回数が多すぎます。'.RateLimiter::availableIn($key).'秒後にもう一度お試しください。',
+                'username' => 'ログインの試行回数が多すぎます。'.RateLimiter::availableIn($key).'秒後にもう一度お試しください。',
             ]);
         }
 
@@ -38,7 +38,7 @@ class AuthController extends Controller
             RateLimiter::hit($key);
 
             throw ValidationException::withMessages([
-                'email' => 'メールアドレスまたはパスワードが正しくありません。',
+                'username' => 'ユーザー名またはパスワードが正しくありません。',
             ]);
         }
 
