@@ -1,7 +1,7 @@
 # サイトの修正方法
 
 PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューなどを修正するときの手順です。
-修正したものを本番（ロリポップ）に反映する方法は [deploy.md](deploy.md) を参照してください。
+修正後に本番（ロリポップ）へ反映する手順は [8章](#8-公開用ファイルを作って本番に反映する) にあります。初めて公開するとき（サーバーの準備・WordPressからの切り替え）は [deploy.md](deploy.md) を参照してください。
 
 ---
 
@@ -9,11 +9,13 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 
 1. [修正の流れ](#1-修正の流れ)
 2. [開発環境の起動と停止](#2-開発環境の起動と停止)
-3. [どこを直せばいいか（早見表）](#3-どこを直せばいいか早見表)
-4. [よくある修正](#4-よくある修正)
-5. [見た目（色・余白・レイアウト）を変える](#5-見た目色余白レイアウトを変える)
-6. [修正したら確認すること](#6-修正したら確認すること)
-7. [困ったときは](#7-困ったときは)
+3. [フォルダ構成と触ってよい場所](#3-フォルダ構成と触ってよい場所)
+4. [どこを直せばいいか（早見表）](#4-どこを直せばいいか早見表)
+5. [よくある修正](#5-よくある修正)
+6. [見た目（色・余白・レイアウト）を変える](#6-見た目色余白レイアウトを変える)
+7. [修正したら確認すること](#7-修正したら確認すること)
+8. [公開用ファイルを作って本番に反映する](#8-公開用ファイルを作って本番に反映する)
+9. [困ったときは](#9-困ったときは)
 
 ---
 
@@ -21,13 +23,15 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 
 ```
 ① 開発環境を起動する      docker compose up -d
-② ファイルを修正する       VS Code などで編集して保存
+② ファイルを修正する       触ってよい場所は 3章、どこを直すかは 4章
 ③ ブラウザで確認する       http://localhost:8000 （保存すると自動で再読み込み）
-④ 自動テストを実行する     （6章）
-⑤ 本番に公開する           deploy.md の「2回目以降の更新手順」
+④ 自動テストを実行する     7章
+⑤ Gitに記録する            9章「変更の履歴」
+⑥ 公開用ファイルを作る     scripts/build-release.sh（8章）
+⑦ 本番に反映する           アップロードして deploy.sh を実行（8章）
 ```
 
-修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。ビルドは本番に公開するときだけ `build-release.sh` が行います。
+修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥の `build-release.sh` が自動で行います。
 
 ---
 
@@ -56,26 +60,80 @@ docker compose exec app php artisan admin:create メールアドレス
 
 ---
 
-## 3. どこを直せばいいか（早見表）
+## 3. フォルダ構成と触ってよい場所
+
+`~/work/mellow` 以下の構成です。**✏️ の場所だけで、普段の修正はすべてできます。**
+
+| 印 | 意味 |
+|:-:|---|
+| ✏️ | 普段の修正で触る場所 |
+| ⚠️ | 仕組みを変えるときだけ触る（分からなければ Claude Code に頼む） |
+| 🚫 | 触らない（自動で作られる・上書きされる・壊れると動かなくなる） |
+
+```
+mellow/
+├── docs/                       ✏️ 手順書（この文書など）
+├── scripts/                    ⚠️ 公開用ファイルを作る・配置するスクリプト
+├── docker/   compose.yaml      ⚠️ 開発環境（Docker）の設定
+├── release/                    🚫 公開用ファイル（build-release.sh が毎回作り直す）
+└── src/                        Laravel 本体
+    ├── resources/
+    │   ├── views/pages/        ✏️ 各ページの内容（文章・写真・レイアウト）
+    │   ├── views/components/   ✏️ 共通部品（ヘッダー・フッター・ボタン等。全ページに影響）
+    │   ├── views/admin/        ⚠️ 管理画面
+    │   ├── views/mail/         ✏️ 通知メールの文面
+    │   ├── images/             ✏️ 写真の元データを置く場所（npm run images で変換）
+    │   ├── data/instagram.json ✏️ トップの Instagram 欄
+    │   ├── data/images.json    🚫 写真の一覧（npm run images が自動で更新）
+    │   ├── css/app.css         ✏️ 色・フォント（ブランドカラー）
+    │   └── js/                 ⚠️ React（予約フォーム・カレンダー・拡大表示・スマホメニュー）
+    ├── config/
+    │   ├── site.php            ✏️ 店舗情報・メニュー・プラン一覧
+    │   ├── pages.php           ✏️ ページの URL・タイトル・説明文・旧URLの転送
+    │   ├── forms.php           ✏️ 予約フォーム・お問い合わせの項目
+    │   └── その他              ⚠️ Laravel の設定
+    ├── .env                    ✏️ 手元の設定（通知先メールなど。Gitには記録されない）
+    ├── app/                    ⚠️ PHP のプログラム（フォーム送信・空き状況・管理画面）
+    ├── routes/                 ⚠️ URL の割り当て（ページは config/pages.php で追加する）
+    ├── database/               ⚠️ データベースの構造・初期データ
+    ├── tests/                  ⚠️ 自動テスト
+    ├── public/images/          🚫 変換済みの写真（npm run images が作る）
+    ├── public/build/  public/hot  🚫 ビルド結果・開発サーバーの目印
+    ├── vendor/  node_modules/  🚫 ライブラリ（自動でインストールされる）
+    ├── storage/  bootstrap/cache/  🚫 ログ・キャッシュ
+    ├── CLAUDE.md  AGENTS.md  .claude/  .agents/  🚫 Claude Code 向けの説明（自動生成。
+    │                                    変えたい場合は .ai/guidelines/project.md を直す）
+    └── composer.json/lock  package.json/lock  vite.config.js  ⚠️ ライブラリ・ビルドの設定
+```
+
+**特に注意すること**
+
+- `src/public/images/` の写真を直接置き換えたり、`images.json` を手で編集したりしないでください。写真は必ず `src/resources/images/` に置いて `npm run images` で変換します（[5-4](#5-4-写真を追加差し替える)）。
+- `release/` の中を編集しても、次に `build-release.sh` を実行すると消えます。修正は必ず `src/` 側で行ってください。
+- `views/components/` の部品を直すと、その部品を使っている**全ページ**が変わります。
+
+---
+
+## 4. どこを直せばいいか（早見表）
 
 `src/` 以下のファイルです。
 
 | やりたいこと | 直すファイル |
 |---|---|
-| ページの文章・写真・レイアウト | `resources/views/pages/〇〇.blade.php`（[4-1](#4-1-文章を直す)） |
-| トップページのお知らせ | `resources/views/pages/home.blade.php`（[4-2](#4-2-お知らせを変える)） |
-| 料金 | 複数ファイル（[4-3](#4-3-料金を変える)） |
-| 写真の追加・差し替え | `resources/images/` に置いて変換（[4-4](#4-4-写真を追加差し替える)） |
-| ヘッダーのメニュー | `config/site.php` の `navigation`（[4-5](#4-5-メニューフッターのリンクを変える)） |
+| ページの文章・写真・レイアウト | `resources/views/pages/〇〇.blade.php`（[5-1](#5-1-文章を直す)） |
+| トップページのお知らせ | `resources/views/pages/home.blade.php`（[5-2](#5-2-お知らせを変える)） |
+| 料金 | 複数ファイル（[5-3](#5-3-料金を変える)） |
+| 写真の追加・差し替え | `resources/images/` に置いて変換（[5-4](#5-4-写真を追加差し替える)） |
+| ヘッダーのメニュー | `config/site.php` の `navigation`（[5-5](#5-5-メニューフッターのリンクを変える)） |
 | フッターのリンク | `resources/views/components/site-footer.blade.php` |
-| 住所・メール・LINE・Instagram のURL | `config/site.php`（[4-6](#4-6-店舗情報住所連絡先を変える)） |
-| ページのタイトル・検索結果の説明文 | `config/pages.php`（[4-7](#4-7-ページのタイトル検索結果の説明文を変える)） |
-| ページの追加 | `config/pages.php` ＋ ビューを作成（[4-8](#4-8-ページを追加する)） |
-| 予約フォーム・お問い合わせの項目 | `config/forms.php`（[4-10](#4-10-予約フォームお問い合わせの項目を変える)） |
-| 通知メールの宛先 | `.env` の `SITE_MAIL_TO`（[4-11](#4-11-通知メールの宛先を変える)） |
+| 住所・メール・LINE・Instagram のURL | `config/site.php`（[5-6](#5-6-店舗情報住所連絡先を変える)） |
+| ページのタイトル・検索結果の説明文 | `config/pages.php`（[5-7](#5-7-ページのタイトル検索結果の説明文を変える)） |
+| ページの追加 | `config/pages.php` ＋ ビューを作成（[5-8](#5-8-ページを追加する)） |
+| 予約フォーム・お問い合わせの項目 | `config/forms.php`（[5-10](#5-10-予約フォームお問い合わせの項目を変える)） |
+| 通知メールの宛先 | `.env` の `SITE_MAIL_TO`（[5-11](#5-11-通知メールの宛先を変える)） |
 | 空き状況 | 管理画面（ファイルの修正は不要） |
-| トップの Instagram 欄の写真 | `resources/data/instagram.json`（[4-12](#4-12-トップの-instagram-欄を更新する)） |
-| 色・フォント | `resources/css/app.css`（[5章](#5-見た目色余白レイアウトを変える)） |
+| トップの Instagram 欄の写真 | `resources/data/instagram.json`（[5-12](#5-12-トップの-instagram-欄を更新する)） |
+| 色・フォント | `resources/css/app.css`（[6章](#6-見た目色余白レイアウトを変える)） |
 
 ### URL とファイルの対応
 
@@ -112,9 +170,9 @@ docker compose exec app php artisan admin:create メールアドレス
 
 ---
 
-## 4. よくある修正
+## 5. よくある修正
 
-### 4-1. 文章を直す
+### 5-1. 文章を直す
 
 ページのファイルはHTMLとほぼ同じ書き方です。**タグ（`<p>` など）の間の文字だけ**を書き換えれば、見た目はそのまま文章が変わります。
 
@@ -135,9 +193,9 @@ docker compose exec app php artisan admin:create メールアドレス
 **注意**
 - `class="…"` の中は見た目の指定です。文章だけ直すときは触らないでください。
 - `{{ }}` と `@` で始まる単語（`@if` など）は、Blade の命令として扱われます。文章中で使う場合は `@{{ }}` / `@@` のように `@` を1つ追加してください（メールアドレスの `@` はそのままで問題ありません）。
-- `<x-…>` で始まるタグは共通部品です（[5章](#共通部品の一覧)）。
+- `<x-…>` で始まるタグは共通部品です（[6章](#共通部品の一覧)）。
 
-### 4-2. お知らせを変える
+### 5-2. お知らせを変える
 
 トップのお知らせは `resources/views/pages/home.blade.php` の `{{-- お知らせ --}}` の部分です。
 
@@ -154,7 +212,7 @@ docker compose exec app php artisan admin:create メールアドレス
 
 予約フォームのページ（`reservation.blade.php`）や七五三プラン（`plans/shichigosan.blade.php`）にも、同じ形のお知らせがあります。
 
-### 4-3. 料金を変える
+### 5-3. 料金を変える
 
 料金は**次の場所すべて**を直してください（例: 生花Styling 20カット 平日 22,000円）。
 
@@ -172,7 +230,7 @@ docker compose exec app php artisan admin:create メールアドレス
 grep -rn "3,300\|3300" src/resources/views src/config
 ```
 
-### 4-4. 写真を追加・差し替える
+### 5-4. 写真を追加・差し替える
 
 サイトの写真は、表示速度のために **WebP 形式・3サイズ** に変換して使っています。元の写真を置いてコマンドを実行すると、自動で変換されます。
 
@@ -215,7 +273,7 @@ docker compose run --rm --no-deps node npm run images
 
 > 画像キーは、ページのファイルの `src="…"` や `images` の一覧で確認できます。変換済みの画像は `src/public/images/` に、一覧は `src/resources/data/images.json` にあります（どちらも手で編集しないでください）。
 
-### 4-5. メニュー・フッターのリンクを変える
+### 5-5. メニュー・フッターのリンクを変える
 
 **ヘッダーのメニュー**（PC・スマホ共通）は `config/site.php` の `navigation` です。
 
@@ -231,7 +289,7 @@ docker compose run --rm --no-deps node npm run images
 
 **フッターのリンク**は `resources/views/components/site-footer.blade.php` を直接編集します。
 
-### 4-6. 店舗情報（住所・連絡先）を変える
+### 5-6. 店舗情報（住所・連絡先）を変える
 
 `config/site.php` の次の項目です。フッター・アクセス・検索エンジン向けの店舗情報（構造化データ）にまとめて反映されます。
 
@@ -242,7 +300,7 @@ docker compose run --rm --no-deps node npm run images
 | `contact.instagram_url` / `instagram_id` | Instagram |
 | `address` | 郵便番号・住所・最寄り駅・地図の埋め込みURL |
 
-### 4-7. ページのタイトル・検索結果の説明文を変える
+### 5-7. ページのタイトル・検索結果の説明文を変える
 
 `config/pages.php` の各ページの次の項目です。
 
@@ -254,7 +312,7 @@ docker compose run --rm --no-deps node npm run images
 
 > ページ内の大きな見出し（h1）は、各ページのファイルの `<x-page-hero title="…">` です。
 
-### 4-8. ページを追加する
+### 5-8. ページを追加する
 
 例: 「よくある質問」ページ（`/faq`）を追加する場合
 
@@ -287,11 +345,11 @@ docker compose run --rm --no-deps node npm run images
 </x-layouts.app>
 ```
 
-**3. 必要ならメニューに追加**（[4-5](#4-5-メニューフッターのリンクを変える)）
+**3. 必要ならメニューに追加**（[5-5](#5-5-メニューフッターのリンクを変える)）
 
 ページの表示・サイトマップ（sitemap.xml）・パンくずリストへの追加は自動で行われます。
 
-### 4-9. 旧サイトのURLの転送を追加する
+### 5-9. 旧サイトのURLの転送を追加する
 
 旧WordPressのURL（`https://ps-mellow.jp/bb/〇〇/`）を新しいページへ転送するには、`config/pages.php` の `redirects` に追加します。
 
@@ -302,7 +360,7 @@ docker compose run --rm --no-deps node npm run images
 ],
 ```
 
-### 4-10. 予約フォーム・お問い合わせの項目を変える
+### 5-10. 予約フォーム・お問い合わせの項目を変える
 
 項目は `config/forms.php` にまとまっています。ここを直すと、**画面のフォーム・入力チェック・通知メールのすべてに反映**されます。
 
@@ -327,18 +385,18 @@ docker compose run --rm --no-deps node npm run images
 
 > 選択肢のキー（左側）を変えると、プランページの「このプランで予約する」ボタンから選択済みで開く機能が効かなくなることがあります。キーはなるべく変えず、表示名だけを変えてください。
 
-### 4-11. 通知メールの宛先を変える
+### 5-11. 通知メールの宛先を変える
 
 フォームの通知先は `.env` の `SITE_MAIL_TO` です。
 
 - 手元: `src/.env`
 - 本番: サーバーの `~/mellow-app/.env`（変更後に `artisan optimize` が必要。deploy.md の「困ったときは」参照）
 
-### 4-12. トップの Instagram 欄を更新する
+### 5-12. トップの Instagram 欄を更新する
 
 トップの Instagram 欄は、自動では更新されません（Instagram の仕様変更で止まらないよう、写真を保存して表示しています）。更新する場合は次のとおりです。
 
-1. 写真を `src/resources/images/instagram/<名前>.jpg` に置いて変換する（[4-4](#4-4-写真を追加差し替える)）
+1. 写真を `src/resources/images/instagram/<名前>.jpg` に置いて変換する（[5-4](#5-4-写真を追加差し替える)）
 2. `src/resources/data/instagram.json` の各投稿を書き換える
 
 ```json
@@ -351,7 +409,7 @@ docker compose run --rm --no-deps node npm run images
 
 9件（3列×3段）にするときれいに並びます。
 
-### 4-13. 空き状況を登録する
+### 5-13. 空き状況を登録する
 
 ファイルの修正は不要です。管理画面（本番は `https://ps-mellow.jp/admin`）で登録します。
 
@@ -362,7 +420,7 @@ docker compose run --rm --no-deps node npm run images
 
 ---
 
-## 5. 見た目（色・余白・レイアウト）を変える
+## 6. 見た目（色・余白・レイアウト）を変える
 
 見た目は **Tailwind CSS** で、`class="…"` の中に指定しています。
 
@@ -400,7 +458,7 @@ docker compose run --rm --no-deps node npm run images
 
 ---
 
-## 6. 修正したら確認すること
+## 7. 修正したら確認すること
 
 **1. ブラウザで確認**
 
@@ -424,11 +482,86 @@ docker compose exec app php artisan test --compact
 docker compose exec app vendor/bin/pint --dirty
 ```
 
-**4. 本番に公開する** → [deploy.md の「2回目以降の更新手順」](deploy.md#5-2回目以降の更新手順)
+**4. 本番に公開する** → [8章](#8-公開用ファイルを作って本番に反映する)
 
 ---
 
-## 7. 困ったときは
+## 8. 公開用ファイルを作って本番に反映する
+
+修正と確認が終わったら、次の順で本番（ロリポップ）に反映します。初めて公開するときは [deploy.md の「初回の公開手順」](deploy.md#4-初回の公開手順) を参照してください。
+
+### 8-1. 公開前の確認と記録
+
+```bash
+cd ~/work/mellow
+docker compose exec app php artisan test --compact     # failed が無いこと
+git add -A && git commit -m "七五三の料金を変更"        # 変更内容を記録（9章）
+```
+
+> 公開用ファイルは**今ある `src/` の状態**から作られます（記録していない変更も含まれます）。記録してから作ると、「何を公開したか」があとで分かります。
+
+### 8-2. 公開用ファイルを作る
+
+```bash
+cd ~/work/mellow
+docker compose up -d                 # 起動していなければ
+scripts/build-release.sh
+```
+
+1〜2分ほどで、最後に次のように表示されれば完了です。
+
+```
+✓ 完了: release/mellow-release.tar.gz ( 96M)
+```
+
+このスクリプトは次のことを自動で行います。
+
+| 処理 | 内容 |
+|---|---|
+| ビルド | CSS・JavaScript（React）を本番用に変換して `src/public/build/` に出力 |
+| コピー | 本番に必要なファイルだけを `release/mellow-release/` に集める（テスト・開発用のファイル、`.env`、写真の元データは含めない） |
+| ライブラリ | 本番用のライブラリ（`vendor`）をインストール |
+| 設定 | 公開フォルダ用の `index.php` と、HTTPS へ転送する `.htaccess` を用意 |
+| 圧縮 | すべてを `release/mellow-release.tar.gz` にまとめる（これをアップロードする） |
+
+> `release/` は毎回作り直されます。中身を手で編集しないでください。
+
+### 8-3. アップロードして反映する
+
+```bash
+# 手元のMacから送る（アカウント名はロリポップのFTPアカウント）
+scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
+
+# サーバーに入って配置
+ssh -p 2222 アカウント名@ssh.lolipop.jp
+rm -rf mellow-release && tar xzf mellow-release.tar.gz
+bash mellow-release/deploy.sh
+exit
+```
+
+`✓ 配置が完了しました` と表示されれば反映済みです。作業中（数十秒）はサイトに「メンテナンス中」と表示されます。`.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
+
+### 8-4. 公開後の確認
+
+- [ ] `https://ps-mellow.jp/` で修正した箇所が反映されている（古い表示のままならブラウザを再読み込み）
+- [ ] スマホでも表示が崩れていない
+- [ ] フォームを直した場合は、テスト送信して通知メールが届く
+
+### 8-5. 公開した内容を元に戻したいとき
+
+Git の記録を使って、問題のある変更を取り消してから、もう一度公開します。
+
+```bash
+git log --oneline                    # 記録の一覧から、取り消したい記録のIDを確認
+git revert 記録のID                   # その変更を打ち消す記録を作る
+scripts/build-release.sh             # 作り直して 8-3 の手順で反映
+```
+
+> どの記録を取り消せばよいか分からない場合は、Claude Code に「さっき公開した〇〇の変更を元に戻したい」と頼んでください。
+
+---
+
+## 9. 困ったときは
 
 | 症状 | 対処 |
 |---|---|
