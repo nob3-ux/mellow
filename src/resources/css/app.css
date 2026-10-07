@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+@source '../views';
+@source '../js';
+
+@theme {
+    --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+    --font-sans: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+    --font-display: 'Cormorant Garamond', 'Noto Serif JP', serif;
+
+    /* ブランドカラー（旧サイトの配色を継承） */
+    --color-brand-50: #faf8f3;
+    --color-brand-100: #f3eee3;
+    --color-brand-200: #e7e2ca;
+    --color-brand-300: #d6cfbc;
+    --color-brand-400: #c0af98;
+    --color-brand-500: #be9f7c;
+    --color-brand-600: #9a7d5e;
+    --color-brand-700: #786045;
+    --color-brand-800: #5b4833;
+    --color-brand-900: #3d3022;
+    --color-ink: #3b342c;
+    --color-line: #06c755;
+    --color-line-dark: #05a647;
+    --color-alert: #b4473a;
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        @apply bg-brand-50 font-serif text-ink antialiased;
+        /* スマホで横にスクロールできないようにする（clip は sticky のヘッダーを妨げない） */
+        overflow-x: clip;
+        line-height: 1.9;
+        letter-spacing: 0.04em;
+    }
+
+    :focus-visible {
+        @apply outline-2 outline-offset-2 outline-brand-700;
+    }
+
+    [x-cloak],
+    [hidden] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    /* 長文（旧サイトから引き継いだ文章）用の組版 */
+    .prose-mellow {
+        @apply text-[0.95rem] leading-loose text-ink sm:text-base;
+    }
+
+    .prose-mellow p + p {
+        @apply mt-5;
+    }
+
+    .prose-mellow strong {
+        @apply font-semibold text-brand-800;
+    }
+
+    .prose-mellow a {
+        @apply text-brand-700 underline decoration-brand-400 underline-offset-4 transition hover:text-brand-900;
+    }
+
+    .prose-mellow ul {
+        @apply mt-4 space-y-1;
+    }
+}
