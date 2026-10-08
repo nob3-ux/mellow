@@ -2,7 +2,8 @@
 
 PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタルサーバー**の `https://ps-mellow.jp/`（ドメイン直下）に公開・更新するための手順です。
 
-- 公開用のファイルは**手元のMac（Docker）で作り**、サーバーには**アップロードして1つのスクリプトを実行するだけ**です。サーバーに Node.js や Composer は不要です。
+- ソースコードは **GitHub（非公開リポジトリ）** に置き、サーバーは **`git pull` で取り込んで** 反映します。
+- React・CSS のビルドは**手元のMacで行い、ビルド結果も Git に記録**します。サーバーに Node.js は不要です。サーバーでは PHP のライブラリ（Composer）だけをインストールします。
 - 現在の WordPress（`https://ps-mellow.jp/bb/`）はそのまま残し、ドメインの**公開フォルダを切り替える**ことで新サイトに移行します。問題があれば設定を戻すだけで元に戻せます。
 - 旧サイトのURL（`/bb/753plan/` など）は、新サイトの対応するページへ自動で転送（301）されます。
 
@@ -12,7 +13,7 @@ PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタ
 
 1. [全体の流れ](#1-全体の流れ)
 2. [事前に確認すること](#2-事前に確認すること)
-3. [サーバー上のフォルダ構成](#3-サーバー上のフォルダ構成)
+3. [サーバー上のフォルダ構成と deploy.sh の動き](#3-サーバー上のフォルダ構成と-deploysh-の動き)
 4. [初回の公開手順](#4-初回の公開手順)
 5. [2回目以降の更新手順](#5-2回目以降の更新手順)
 6. [困ったときは](#6-困ったときは)
@@ -22,24 +23,30 @@ PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタ
 ## 1. 全体の流れ
 
 ```
-手元のMac                                       ロリポップ
-───────────────────────────                     ──────────────────────────────────────
-scripts/build-release.sh                        ~/mellow-release.tar.gz
-  └ release/mellow-release.tar.gz ─ アップロード →  └ deploy.sh を実行すると…
-                                                     ~/mellow-app/   ← アプリ本体（公開されない）
-                                                     ~/web/mellow/   ← 公開フォルダ
-                                                ps-mellow.jp の公開フォルダを「mellow」に切り替え
+手元のMac                         GitHub（非公開）              ロリポップ
+────────────────────             ────────────────             ─────────────────────────────
+修正して git commit
+scripts/publish.sh
+  ├ テスト
+  ├ 本番用ビルド・記録
+  └ git push ───────────────────→ main ブランチ
+                                       │
+                                       └──── git pull ────→ ~/mellow/            （リポジトリ）
+                                                             bash ~/mellow/scripts/deploy.sh
+                                                               ├ Composer・DB更新・キャッシュ
+                                                               └ ~/web/mellow → ~/mellow/src/public
 ```
 
 | 作業 | 初回 | 更新時 |
 |---|:-:|:-:|
 | ロリポップの準備（PHP・SSH・データベース・メール） | ○ | |
-| 公開用ファイルを作る（手元で1コマンド） | ○ | ○ |
-| アップロード（手元で1コマンド） | ○ | ○ |
+| GitHub にリポジトリを作り、手元から送る | ○ | |
+| サーバーに GitHub 用の鍵（デプロイキー）を作る | ○ | |
+| サーバーにリポジトリを取り込む（`git clone`） | ○ | |
 | `.env`（本番の設定ファイル）を作る | ○ | |
-| 配置スクリプトの実行（サーバーで1コマンド） | ○ | ○ |
-| 管理者アカウントの作成 | ○ | |
-| 公開フォルダの切り替え | ○ | |
+| 手元で `scripts/publish.sh`（テスト・ビルド・送信） | | ○ |
+| サーバーで `scripts/deploy.sh`（取り込み・反映） | ○ | ○ |
+| 管理者アカウントの作成・公開フォルダの切り替え | ○ | |
 
 ---
 
@@ -49,91 +56,64 @@ scripts/build-release.sh                        ~/mellow-release.tar.gz
 |---|---|---|
 | プラン | **スタンダード・ハイスピード・エンタープライズのいずれか**（SSHが使えるプラン） | ユーザー専用ページ |
 | PHP | **8.4 以上**（推奨 8.5） | ユーザー専用ページ「PHP設定」 |
+| Git | サーバーで `git` コマンドが使えること（4-4で確認） | SSH |
 | データベース | MySQL（ロリポップで作成） | ユーザー専用ページ「データベース」 |
 | SSL | ps-mellow.jp の独自SSLが有効（現在のWordPressで有効なはず） | ユーザー専用ページ「独自SSL証明書導入」 |
+| GitHub | アカウントがあり、非公開リポジトリを作れること | https://github.com |
 
 > **PHP 8.3 以下では動きません。** Laravel 13 が使う部品が PHP 8.4.1 以上を必要とします。
 > PHP のバージョンはドメインごとに設定します。WordPress（/bb/）も同じドメインのため、PHP を上げると WordPress も新しい PHP で動きます。切り替えまでの間、WordPress の表示に問題がないか確認してください。
 
-> **ライトプラン以下の場合**: SSH が使えないため、この手順ではデプロイできません。プラン変更をご検討ください。
-
 ---
 
-## 3. サーバー上のフォルダ構成
+## 3. サーバー上のフォルダ構成と deploy.sh の動き
 
-ロリポップでは、FTPで見える一番上が `web/` フォルダで、**SSH でログインした場所（`~`）はその1つ上**です。アプリ本体は、パスワード等を含む `.env` があるため、**公開されない `~/mellow-app/`** に置きます。
+### 3-1. フォルダ構成
+
+ロリポップでは、FTPで見える一番上が `web/` フォルダで、**SSH でログインした場所（`~`）はその1つ上**です。リポジトリは**公開されない `~/mellow/`** に取り込み、公開フォルダ `~/web/mellow` は、その中の `src/public` を指す**シンボリックリンク**（別の場所を指す目印）にします。
 
 ```
-~（/home/users/X/アカウント名/）     ← SSHでログインした場所
-├── mellow-app/                      ← アプリ本体（公開されない・FTPからは見えない）
-│   ├── .env                         ← サーバー上で作成（4-5）
-│   ├── app/ bootstrap/ config/ database/ resources/ routes/ vendor/
-│   └── storage/                     ← ログ・セッション（更新時も残る）
-├── mellow-release.tar.gz            ← アップロードしたファイル（更新のたびに置き換え）
-├── mellow-release/                  ← 上を展開したもの
-└── web/                             ← FTPの一番上
-    ├── （WordPressのフォルダ）       ← 今のまま残す
-    └── mellow/                      ← 新サイトの公開フォルダ
-        ├── .htaccess  index.php
-        ├── build/                   ← CSS・JS
-        └── images/                  ← 画像（WebP）
+~（/home/users/X/アカウント名/）      ← SSHでログインした場所（公開されない）
+├── mellow/                           ← GitHub から取り込んだリポジトリ（git clone）
+│   ├── docs/  scripts/  docker/  ...
+│   └── src/                          ← Laravel 本体
+│       ├── .env                      ← サーバー上で作成（Gitには記録されない）
+│       ├── vendor/                   ← deploy.sh が Composer でインストール
+│       ├── storage/                  ← ログ・セッション（更新しても残る）
+│       └── public/                   ← 公開する中身（index.php・build・images）
+├── bin/composer.phar                 ← deploy.sh が初回に自動でダウンロード
+├── .ssh/github_mellow(.pub)          ← GitHub から取り込むための鍵（4-3で作成）
+└── web/                              ← FTPの一番上
+    ├── （WordPressのフォルダ）        ← 今のまま残す
+    └── mellow → ~/mellow/src/public   ← 新サイトの公開フォルダ（シンボリックリンク）
 ```
 
-### 3-1. tar.gz を置く場所
-
-アップロードする `mellow-release.tar.gz` は、**SSHでログインした直後の場所（ホームフォルダ `~`）** に置きます。ロリポップでは `/home/users/番号/アカウント名/` にあたり、公開フォルダ（`web/`）の1つ上の、外からは見えない場所です。
-
-手元のMacで次のように送れば、自動でそこに置かれます（`:~/` がホームフォルダの意味です）。
-
-```bash
-scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
-```
-
-> **FTPでは置かないでください。** FTPで見える一番上は `web/`（公開フォルダ）です。ここに置くと、tar.gz がインターネットから誰でもダウンロードできる状態になります（中身はサイトのプログラム一式。`.env` は含まれません）。
-
-tar.gz は置いただけでは使えません。**展開してから** `deploy.sh` を実行します（展開せずに実行すると「そのようなファイルはありません」というエラーになります）。
-
-```bash
-ssh -p 2222 アカウント名@ssh.lolipop.jp     # ホームフォルダに入る
-rm -rf mellow-release                       # 前回展開したものを消す（初回は不要）
-tar xzf mellow-release.tar.gz               # 展開 → ~/mellow-release/ ができる
-bash mellow-release/deploy.sh               # 配置（初回は --first を付ける）
-```
+> **サーバー上のファイルは直接編集しないでください。** 修正は必ず手元で行い、GitHub 経由で反映します。サーバーで編集すると、次の `git pull` が失敗する原因になります（`.env` だけは例外で、Git に記録されないため編集して構いません）。
 
 ### 3-2. deploy.sh がすること
+
+`bash ~/mellow/scripts/deploy.sh` を実行すると、次の順に処理します。
 
 | 順 | 処理 | 内容 |
 |:-:|---|---|
 | 1 | PHPを探す | 8.4以上のPHPを自動で探す（`/usr/local/bin/php8.5` など）。見つからなければ止まる |
 | 2 | メンテナンス表示 | 2回目以降のみ。作業中にアクセスした人には「メンテナンス中」と表示される |
-| 3 | アプリ本体を配置 | `~/mellow-app/` のプログラム（app・config・resources・vendor など）を新しいものに入れ替える。**`.env` と `storage/`（ログ・セッション）はそのまま残す** |
-| 4 | 公開フォルダを配置 | `~/web/mellow/` に CSS/JS（`build/`）・画像・`index.php`・`.htaccess` を上書きコピーする（フォルダが無ければ作る） |
-| 5 | `.env` の確認 | `~/mellow-app/.env` が無ければ、ここで「作成してください」と表示して止まる（初回の1回目はここで止まるのが正常） |
-| 6 | データベースを更新 | テーブルの追加・変更があれば反映する。`--first` のときだけ初期データ（10月分の空き状況）も入れる |
-| 7 | キャッシュを作り直す | 設定・URL・画面のキャッシュを作り直す（`.env` の変更もここで反映される） |
-| 8 | 公開を再開 | メンテナンス表示を解除し、「✓ 配置が完了しました」と表示する |
+| 3 | 取り込み | `git pull` で GitHub の最新の内容を取り込む |
+| 4 | ライブラリ | Composer で本番用ライブラリ（`vendor`）をインストール。Composer が無ければ `~/bin/composer.phar` に自動でダウンロード |
+| 5 | 公開フォルダ | `~/web/mellow` が無ければ、`~/mellow/src/public` へのシンボリックリンクを作る（初回のみ） |
+| 6 | `.env` の確認 | `~/mellow/src/.env` が無ければ「作成してください」と表示して止まる（初回の1回目はここで止まるのが正常） |
+| 7 | データベース | テーブルの追加・変更があれば反映。`--first` のときだけ初期データ（10月分の空き状況）も入れる |
+| 8 | キャッシュ | 設定・URL・画面のキャッシュを作り直す（`.env` の変更もここで反映される） |
+| 9 | 公開を再開 | メンテナンス表示を解除し、「✓ 本番に反映しました」と表示する |
 
-**実行前と実行後のフォルダ**
-
-```
-実行前                                実行後
-~/                                    ~/
-├── mellow-release.tar.gz             ├── mellow-release.tar.gz   （残る）
-├── mellow-release/  ← 展開したもの    ├── mellow-release/         （残る。次回 rm -rf で消す）
-└── web/                              ├── mellow-app/             ★アプリ本体（公開されない）
-    └── （WordPress）                 │   ├── .env                 （初回だけ手で作る。以後は触らない）
-                                      │   └── storage/             （ログ等。以後も残る）
-                                      └── web/
-                                          ├── （WordPress）         （そのまま）
-                                          └── mellow/              ★公開フォルダ
-```
+途中で失敗した場合も、メンテナンス表示は自動で解除されます。
 
 ### 3-3. deploy.sh がしないこと
 
-- **公開フォルダの切り替え**：ps-mellow.jp をどのフォルダで表示するかは、ロリポップの管理画面（独自ドメイン設定）で、初回に1度だけ `mellow` に変更します（[4-8](#4-8-公開フォルダを切り替える)）。実行しただけでは、サイトの表示は切り替わりません。
+- **公開フォルダの切り替え**：ps-mellow.jp をどのフォルダで表示するかは、ロリポップの管理画面で初回に1度だけ `mellow` に変更します（[4-9](#4-9-公開フォルダを切り替える)）。
 - **WordPress や `web/` 内の他のフォルダの変更・削除**
-- **管理者アカウントの作成**：初回に `admin:create mariko` を別途実行します（[4-7](#4-7-管理者アカウントを作る)）。
-- **tar.gz と展開したフォルダの削除**：次回の更新時に上書き・削除されるので、残しておいて問題ありません。
+- **管理者アカウントの作成**：初回に `admin:create mariko` を別途実行します（[4-8](#4-8-管理者アカウントを作る)）。
+- **React・CSS のビルド**：手元の `publish.sh` で行い、ビルド結果を GitHub に送っています。
 
 ---
 
@@ -154,63 +134,78 @@ bash mellow-release/deploy.sh               # 配置（初回は --first を付�
    「メール」で `info@ps-mellow.jp` などのアカウントを用意し、ユーザー専用ページに表示される**送信（SMTP）サーバーの情報**を控える。
    - SMTPサーバー名・ポート・暗号化方式（SSL/STARTTLS）・ユーザー名（通常はメールアドレス全体）・パスワード
 
-### 4-2. SSH接続を確認する（手元のMacのターミナル）
+### 4-2. GitHub にリポジトリを作り、手元から送る
 
-```bash
-ssh -p 2222 アカウント名@ssh.lolipop.jp
-# パスワードを入力してログインできたら、続けて確認
-pwd                       # /home/users/X/アカウント名 のように表示される
-ls                        # web が見えること
-/usr/local/bin/php8.5 -v || /usr/local/php/8.5/bin/php -v   # どちらかで PHP 8.5 が表示される
-exit
-```
-
-> PHP のコマンドの場所はサーバーの世代によって異なります。配置スクリプト（deploy.sh）は自動で探すので、ここでは「どちらかで表示される」ことだけ確認できれば十分です。
-
-毎回パスワードを入力しなくて済むよう、SSH鍵を登録しておくと便利です（任意）。
-
-### 4-3. 公開用ファイルを作る（手元のMac）
+1. GitHub で**非公開（Private）**の空のリポジトリを作る（README などは追加しない）。
+2. 手元のMacで、リポジトリの場所を登録して送る。
 
 ```bash
 cd ~/work/mellow
-docker compose up -d          # まだ起動していなければ
-scripts/build-release.sh
+git remote add origin git@github.com:GitHubのユーザー名/リポジトリ名.git
+git push -u origin main
 ```
 
-`release/mellow-release.tar.gz`（約100MB）ができます。中身は次のとおりで、毎回作り直されます。
+> 手元のMacから GitHub へ送るには、Mac側の GitHub 認証（SSH鍵など）が必要です。GitHub の「Settings → SSH and GPG keys」で手元の公開鍵を登録してください。
 
-| 中身 | 配置先 | 内容 |
-|---|---|---|
-| `mellow-app/` | `~/mellow-app/` | アプリ本体と本番用ライブラリ |
-| `public/` | `~/web/mellow/` | `.htaccess`・`index.php`・CSS/JS・画像 |
-| `deploy.sh` | （実行するだけ） | 上記の配置・データベース更新・キャッシュ作成を行うスクリプト |
+### 4-3. サーバーに GitHub 用の鍵（デプロイキー）を作る
 
-### 4-4. アップロードして配置する（1回目）
-
-tar.gz を置く場所と、`deploy.sh` が何をするかは [3-1〜3-3](#3-1-targz-を置く場所) を参照してください。
+非公開リポジトリをサーバーから取り込むため、**読み取り専用の鍵**をサーバーに作り、GitHub に登録します。
 
 ```bash
-# 手元のMacから送る
-scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
-
-# サーバーに入って展開・配置
+# 手元のMacからサーバーに入る
 ssh -p 2222 アカウント名@ssh.lolipop.jp
-tar xzf mellow-release.tar.gz
-bash mellow-release/deploy.sh --first
+
+# 鍵を作る
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -f ~/.ssh/github_mellow -N "" -C "lolipop-deploy"
+
+# GitHub への接続設定（ポート22が使えない環境でもつながるよう 443 番を使う）
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+    HostName ssh.github.com
+    Port 443
+    User git
+    IdentityFile ~/.ssh/github_mellow
+    IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+
+# 公開鍵を表示してコピーする
+cat ~/.ssh/github_mellow.pub
 ```
 
-初回は `.env` がまだ無いため、ファイルを配置したところで次のように表示されて止まります（正常です）。
+GitHub のリポジトリの「**Settings → Deploy keys → Add deploy key**」を開き、表示された1行（`ssh-ed25519 ...`）を貼り付けて保存します（「Allow write access」は**チェックしない**）。
+
+接続を確認します。
+
+```bash
+ssh -T git@github.com
+# 「Hi GitHubのユーザー名/リポジトリ名! You've successfully authenticated...」と出ればOK
+#（初回は「Are you sure you want to continue connecting」と聞かれるので yes）
+```
+
+### 4-4. サーバーにリポジトリを取り込み、1回目の配置をする
+
+```bash
+git --version                     # git が使えることを確認
+cd ~
+git clone git@github.com:GitHubのユーザー名/リポジトリ名.git mellow
+bash ~/mellow/scripts/deploy.sh --first
+```
+
+- 取り込み先のフォルダ名は必ず `mellow` にしてください（`~/mellow`）。
+- 初回は `.env` がまだ無いため、ライブラリのインストールと公開フォルダのリンク作成のあと、次のように表示されて止まります（正常です）。
 
 ```
-※ /home/users/X/アカウント名/mellow-app/.env がありません。手順書の「.env を作る」に従って作成し、もう一度実行してください。
+※ /home/users/X/アカウント名/mellow/src/.env がありません。docs/deploy.md の「.env を作る」に従って作成し、もう一度実行してください。
 ```
 
 ### 4-5. `.env`（本番の設定ファイル）を作る
 
-サーバー上で `~/mellow-app/.env` を作ります。**このファイルは他人に渡さないでください。**
+サーバー上で `~/mellow/src/.env` を作ります。**このファイルは Git に記録されず、GitHub にも送られません。他人に渡さないでください。**
 
 ```bash
-cd ~/mellow-app
+cd ~/mellow/src
 cp .env.example .env
 vi .env          # vi が苦手な場合は nano .env
 ```
@@ -277,26 +272,32 @@ docker compose exec app php artisan key:generate --show
 ### 4-6. もう一度配置スクリプトを実行する
 
 ```bash
-bash ~/mellow-release/deploy.sh --first
+bash ~/mellow/scripts/deploy.sh --first
 ```
 
-テーブルの作成、初期データ（旧サイトの10月分の空き状況）の投入、キャッシュの作成まで行い、最後に `✓ 配置が完了しました` と表示されれば成功です。
+テーブルの作成、初期データ（旧サイトの10月分の空き状況）の投入、キャッシュの作成まで行い、最後に `✓ 本番に反映しました` と表示されれば成功です。
 
 > `--first` は**初回だけ**付けます。データベースの接続に失敗する場合は、`.env` の `DB_` の値を見直してから再実行してください。
 
-### 4-7. 管理者アカウントを作る
+### 4-7. 公開フォルダ（シンボリックリンク）を確認する
 
 ```bash
-cd ~/mellow-app
+ls -l ~/web/
+# mellow -> /home/users/X/アカウント名/mellow/src/public  と表示されればOK
+```
+
+### 4-8. 管理者アカウントを作る
+
+```bash
+cd ~/mellow/src
 /usr/local/bin/php8.5 artisan admin:create mariko
 ```
 
-- `php8.5` のパスは 4-2 で表示された方を使ってください（`/usr/local/php/8.5/bin/php artisan ...` の場合もあります）。
-- パスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。決めたパスワード（[editing.md の「管理画面のログイン情報」](editing.md#管理画面のログイン情報)）を入力してください。
+- `php8.5` の場所は環境によって `/usr/local/php/8.5/bin/php` の場合もあります（`deploy.sh` の最初に表示された `PHP:` のパスを使ってください）。
+- パスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。決めておいたパスワードを入力してください。
 - ログインはユーザー名（`mariko`）とパスワードで行います。
-- 管理画面は `https://ps-mellow.jp/admin` です（切り替え後に使えます）。
 
-### 4-8. 公開フォルダを切り替える
+### 4-9. 公開フォルダを切り替える
 
 1. ユーザー専用ページの「**独自ドメイン設定**」を開く。
 2. ps-mellow.jp の「**確認・変更**」をクリックする。
@@ -305,8 +306,9 @@ cd ~/mellow-app
 5. 数分おいて `https://ps-mellow.jp/` を開き、新しいサイトが表示されることを確認する。
 
 > 元に戻すには、公開フォルダを手順3でメモした値に戻すだけです。
+> 表示されない（403・404 になる）場合は、[6章](#6-困ったときは)の「シンボリックリンクが使えない場合」を参照してください。
 
-### 4-9. 動作確認
+### 4-10. 動作確認
 
 - [ ] `https://ps-mellow.jp/` が表示され、デザイン（色・フォント）が崩れていない
 - [ ] `http://ps-mellow.jp/` を開くと `https://` に切り替わる
@@ -321,7 +323,7 @@ cd ~/mellow-app
 - [ ] 予約フォームを最後まで進めて送信し、通知メールが届く（テストである旨を記入）
 - [ ] 存在しないURL（例 `https://ps-mellow.jp/test`）で「404」と表示される（エラーの詳細が出ない）
 
-### 4-10. 公開後にやること
+### 4-11. 公開後にやること
 
 - **管理画面で空き状況を登録**する（初期データは旧サイトの10月分のみです）。
 - **Google Search Console** で `https://ps-mellow.jp/sitemap.xml` を送信する。旧URLは301転送されるので、検索結果は順次新しいURLに置き換わります。
@@ -332,25 +334,44 @@ cd ~/mellow-app
 
 ## 5. 2回目以降の更新手順
 
-```bash
-# 手元のMacで
-scripts/build-release.sh
-scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
+**手元のMac**（修正を記録してから）
 
-# サーバーで
-ssh -p 2222 アカウント名@ssh.lolipop.jp
-rm -rf mellow-release && tar xzf mellow-release.tar.gz
-bash mellow-release/deploy.sh
+```bash
+cd ~/work/mellow
+git add -A && git commit -m "七五三の料金を変更"     # 修正を記録
+scripts/publish.sh                                # テスト → 本番用ビルド → GitHub へ送信
 ```
 
-配置スクリプトは次のことを自動で行います（詳しくは [3-2](#3-2-deploysh-がすること)）。
+`publish.sh` は次のことを行います。記録していない変更があると止まるので、先に記録してください。
 
-1. メンテナンス表示に切り替える（作業中にアクセスしたお客様には「メンテナンス中」と表示）
-2. アプリ本体と公開フォルダを入れ替える（**`.env` と `storage/`（ログ等）は残す**）
-3. データベースの変更があれば反映する（無ければ何もしない）
-4. キャッシュを作り直し、メンテナンス表示を解除する
+| 順 | 処理 |
+|:-:|---|
+| 1 | `main` ブランチか、記録していない変更が無いかを確認 |
+| 2 | 自動テスト（失敗したら止まる） |
+| 3 | React・CSS を本番用にビルドし、変更があれば「本番用ビルドを更新」として記録 |
+| 4 | GitHub へ送信（`git push`） |
+
+**サーバー**
+
+```bash
+ssh -p 2222 アカウント名@ssh.lolipop.jp
+bash ~/mellow/scripts/deploy.sh
+exit
+```
+
+`✓ 本番に反映しました（記録のID 内容）` と表示されれば完了です。作業中（数十秒）はサイトに「メンテナンス中」と表示されます。`.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
 
 > 更新時は `--first` を付けないでください。
+
+### 公開した内容を元に戻したいとき
+
+手元で問題のある変更を取り消す記録を作り、もう一度公開します。
+
+```bash
+git log --oneline              # 取り消したい記録のIDを確認
+git revert 記録のID             # その変更を打ち消す記録を作る
+scripts/publish.sh             # 送信 → サーバーで deploy.sh
+```
 
 ---
 
@@ -358,19 +379,27 @@ bash mellow-release/deploy.sh
 
 | 症状 | 主な原因と対処 |
 |---|---|
-| `bash mellow-release/deploy.sh` で「No such file or directory」 | tar.gz を展開していない、またはホームフォルダ以外にいる。`cd ~` してから `tar xzf mellow-release.tar.gz` を実行し、もう一度実行する（[3-1](#3-1-targz-を置く場所)）。 |
-| 「500 Server Error」と表示される | `~/mellow-app/storage/logs/` のログを確認する。よくある原因: `.env` の値の誤り・`APP_KEY` が空・PHPのバージョンが8.4未満（「PHP設定」を確認）。 |
-| 「メンテナンス中」のまま戻らない | 更新が途中で止まっています。`cd ~/mellow-app && /usr/local/bin/php8.5 artisan up` で解除し、エラー内容を確認して再実行する。 |
-| デザインが崩れる（文字だけになる） | `~/web/mellow/build/` が無い。手元で `build-release.sh` から作り直して配置する。 |
-| トップ以外が「404 Not Found」になる | `~/web/mellow/.htaccess` が無い。`ls -a ~/web/mellow` で確認する。 |
+| `ssh -T git@github.com` で接続できない | 4-3 の `~/.ssh/config` と、GitHub のデプロイキーの登録を確認する。`ssh -vT git@github.com` で詳しい原因が表示される。 |
+| `git clone`・`git pull` で「Permission denied (publickey)」 | デプロイキーが登録されていない、または別のリポジトリに登録している。 |
+| `deploy.sh` の `git pull` で失敗する | サーバー上でファイルを編集した可能性がある。`cd ~/mellow && git status` で確認し、`git checkout -- .` で元に戻してから再実行する（`.env` は消えない）。 |
+| `publish.sh` が「記録していない変更があります」で止まる | 表示されたファイルを確認し、`git add -A && git commit -m "内容"` で記録してから再実行する。 |
+| `publish.sh` の `git push` が「rejected」で失敗する | GitHub 側に手元に無い記録がある（別のパソコンで送った等）。`git pull` してから再実行する。 |
+| Composer のインストールで失敗する | 通信エラーなら再実行する。メモリ不足と表示される場合は、時間をおいて再実行するか、ロリポップのサポートに相談する。 |
+| 「500 Server Error」と表示される | `~/mellow/src/storage/logs/` のログを確認する。よくある原因: `.env` の値の誤り・`APP_KEY` が空・PHPのバージョンが8.4未満（「PHP設定」を確認）。 |
+| 「メンテナンス中」のまま戻らない | `cd ~/mellow/src && /usr/local/bin/php8.5 artisan up` で解除し、エラー内容を確認して再実行する。 |
+| デザインが崩れる（文字だけになる） | 手元で `publish.sh` を使わずに送った可能性がある（ビルド結果が古い・無い）。手元で `scripts/publish.sh` を実行し、サーバーで `deploy.sh` を実行する。 |
 | フォーム送信で「送信できませんでした」 | ログを確認。メール設定（`MAIL_HOST`・`MAIL_PORT`・`MAIL_SCHEME`・パスワード）の誤りが多い。 |
 | フォーム送信や管理画面の保存が「403 Forbidden」になる | ロリポップの **WAF**（不正アクセス防止機能）が送信内容を誤って遮断している可能性がある。ユーザー専用ページの「WAF設定」でログを確認する。 |
-| 管理画面で「ログインの有効期限が切れました」 | ページを再読み込みして再ログイン。頻発する場合は `APP_URL` が `https://` になっているか確認。 |
-| `.env` を変えたのに反映されない | `cd ~/mellow-app && /usr/local/bin/php8.5 artisan optimize` を実行する（設定のキャッシュを作り直す）。 |
-| 管理者のパスワードを忘れた | `artisan admin:create mariko` を実行すると再設定できる（4-7と同じ）。 |
-| `deploy.sh` が「PHP 8.4.1 以上が見つかりません」 | 「PHP設定」で 8.4 以上にしたか確認。場所が特殊な場合は `PHP=/path/to/php bash mellow-release/deploy.sh` で指定できる。 |
+| `.env` を変えたのに反映されない | `bash ~/mellow/scripts/deploy.sh` を実行する（キャッシュが作り直される）。 |
+| 管理者のパスワードを忘れた | `cd ~/mellow/src && /usr/local/bin/php8.5 artisan admin:create mariko` で再設定できる。 |
+| `deploy.sh` が「PHP 8.4.1 以上が見つかりません」 | 「PHP設定」で 8.4 以上にしたか確認。場所が特殊な場合は `PHP=/path/to/php bash ~/mellow/scripts/deploy.sh` で指定できる。 |
+| `deploy.sh` が「~/web/mellow が既にあります」 | 同じ名前のフォルダが既にある。中身を確認し、`mv ~/web/mellow ~/web/mellow-old` で退避してから再実行する。 |
 
-ログの場所: `~/mellow-app/storage/logs/laravel-YYYY-MM-DD.log`
+### シンボリックリンクが使えない場合
+
+公開フォルダを `mellow` に切り替えても 403・404 になる場合、サーバーがシンボリックリンクをたどらない設定の可能性があります。この場合は配置方法を変える必要があるため（リポジトリを `web/` の中に置き、公開フォルダ以外を外から見えないようにする設定が必要）、公開フォルダの設定を元に戻したうえで、Claude Code に相談してください。
+
+ログの場所: `~/mellow/src/storage/logs/laravel-YYYY-MM-DD.log`
 
 ---
 
@@ -378,8 +407,8 @@ bash mellow-release/deploy.sh
 
 | ファイル | 役割 |
 |---|---|
-| `scripts/build-release.sh` | 手元で公開用ファイル一式（`release/mellow-release.tar.gz`）を作る |
-| `scripts/server-deploy.sh` | サーバー上で実行する配置スクリプト（tar.gz に `deploy.sh` として入る） |
+| `scripts/publish.sh` | 手元でテスト・本番用ビルド・ビルド結果の記録・GitHub への送信を行う |
+| `scripts/deploy.sh` | サーバーで `git pull`・Composer・DB更新・キャッシュ作成を行う |
+| `src/public/build/` | 本番用にビルドした CSS・JavaScript（`publish.sh` が更新して記録する） |
+| `src/public/.htaccess` | `http://` を `https://` へ転送する設定を含む（手元の開発環境では使われない） |
 | `src/config/pages.php` の `redirects` | 旧URL（`/bb/〇〇`）から新しいページへの転送の対応表 |
-
-公開フォルダの場所を `~/web/mellow` 以外にしたい場合は、`scripts/build-release.sh` の `APP_FROM_PUBLIC`（公開フォルダから見たアプリ本体の場所）と、`deploy.sh` 実行時の環境変数 `PUBLIC_DIR` を合わせて変更してください。

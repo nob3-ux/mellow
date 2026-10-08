@@ -1,7 +1,7 @@
 # サイトの修正方法
 
 PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューなどを修正するときの手順です。
-修正後に本番（ロリポップ）へ反映する手順は [8章](#8-公開用ファイルを作って本番に反映する) にあります。初めて公開するとき（サーバーの準備・WordPressからの切り替え）は [deploy.md](deploy.md) を参照してください。
+修正後に本番（ロリポップ）へ反映する手順は [8章](#8-公開用ファイルを作って本番に反映する) にあります。初めて公開するとき（サーバーの準備・GitHub の設定・WordPressからの切り替え）は [deploy.md](deploy.md) を参照してください。
 
 ---
 
@@ -26,12 +26,12 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 ② ファイルを修正する       触ってよい場所は 3章、どこを直すかは 4章
 ③ ブラウザで確認する       http://localhost:8000 （保存すると自動で再読み込み）
 ④ 自動テストを実行する     7章
-⑤ Gitに記録する            9章「変更の履歴」
-⑥ 公開用ファイルを作る     scripts/build-release.sh（8章）
-⑦ 本番に反映する           アップロードして deploy.sh を実行（8章）
+⑤ Gitに記録する            git commit（9章「変更の履歴」）
+⑥ GitHub に送る            scripts/publish.sh（テスト・本番用ビルド・送信。8章）
+⑦ 本番に反映する           サーバーで scripts/deploy.sh（git pull して反映。8章）
 ```
 
-修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥の `build-release.sh` が自動で行います。
+修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥の `publish.sh` が自動で行います。
 
 ---
 
@@ -60,7 +60,7 @@ docker compose down       # 停止
 | パスワード | 別途保管しているもの（この手順書には記載しない） |
 | ログイン画面 | 手元: http://localhost:8000/admin ／ 本番: https://ps-mellow.jp/admin |
 
-> このログイン情報は手元の開発環境に設定済みです。本番では、初回の公開時に同じ内容でアカウントを作成します（[deploy.md の 4-7](deploy.md#4-7-管理者アカウントを作る)）。
+> このログイン情報は手元の開発環境に設定済みです。本番では、初回の公開時に同じ内容でアカウントを作成します（[deploy.md の 4-7](deploy.md#4-8-管理者アカウントを作る)）。
 > パスワードは、この手順書（GitHub に保存される）には書かず、手帳やパスワード管理アプリなどで別に保管してください。
 
 **パスワードを変更する・アカウントを追加する**
@@ -72,7 +72,7 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 - 実行するとパスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。
 - 既にあるユーザー名を指定するとパスワードの変更、新しいユーザー名を指定するとアカウントの追加になります。
 - ユーザー名に使えるのは半角英数字・`-`・`_`（3〜50文字）です。
-- 本番では、サーバーにSSHで入って `cd ~/mellow-app && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
+- 本番では、サーバーにSSHで入って `cd ~/mellow/src && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
 
 ---
 
@@ -89,9 +89,8 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 ```
 mellow/
 ├── docs/                       ✏️ 手順書（この文書など）
-├── scripts/                    ⚠️ 公開用ファイルを作る・配置するスクリプト
+├── scripts/                    ⚠️ publish.sh（手元から送信）・deploy.sh（サーバーで反映）
 ├── docker/   compose.yaml      ⚠️ 開発環境（Docker）の設定
-├── release/                    🚫 公開用ファイル（build-release.sh が毎回作り直す）
 └── src/                        Laravel 本体
     ├── resources/
     │   ├── views/pages/        ✏️ 各ページの内容（文章・写真・レイアウト）
@@ -114,7 +113,8 @@ mellow/
     ├── database/               ⚠️ データベースの構造・初期データ
     ├── tests/                  ⚠️ 自動テスト
     ├── public/images/          🚫 変換済みの写真（npm run images が作る）
-    ├── public/build/  public/hot  🚫 ビルド結果・開発サーバーの目印
+    ├── public/build/           🚫 本番用のビルド結果（publish.sh が更新して記録する）
+    ├── public/hot              🚫 開発サーバーの目印（記録されない）
     ├── vendor/  node_modules/  🚫 ライブラリ（自動でインストールされる）
     ├── storage/  bootstrap/cache/  🚫 ログ・キャッシュ
     ├── CLAUDE.md  AGENTS.md  .claude/  .agents/  🚫 Claude Code 向けの説明（自動生成。
@@ -125,7 +125,8 @@ mellow/
 **特に注意すること**
 
 - `src/public/images/` の写真を直接置き換えたり、`images.json` を手で編集したりしないでください。写真は必ず `src/resources/images/` に置いて `npm run images` で変換します（[5-4](#5-4-写真を追加差し替える)）。
-- `release/` の中を編集しても、次に `build-release.sh` を実行すると消えます。修正は必ず `src/` 側で行ってください。
+- `src/public/build/` は `publish.sh` が作り直します。手で編集しないでください。
+- 本番サーバー上のファイルは直接編集しないでください。修正は必ず手元で行い、GitHub 経由で反映します（直接編集すると次の `git pull` が失敗します）。
 - `views/components/` の部品を直すと、その部品を使っている**全ページ**が変わります。
 
 ---
@@ -406,7 +407,7 @@ docker compose run --rm --no-deps node npm run images
 フォームの通知先は `.env` の `SITE_MAIL_TO` です。
 
 - 手元: `src/.env`
-- 本番: サーバーの `~/mellow-app/.env`（変更後に `artisan optimize` が必要。deploy.md の「困ったときは」参照）
+- 本番: サーバーの `~/mellow/src/.env`（変更後に `bash ~/mellow/scripts/deploy.sh` を実行すると反映される）
 
 ### 5-12. トップの Instagram 欄を更新する
 
@@ -504,58 +505,50 @@ docker compose exec app vendor/bin/pint --dirty
 
 ## 8. 公開用ファイルを作って本番に反映する
 
-修正と確認が終わったら、次の順で本番（ロリポップ）に反映します。初めて公開するときは [deploy.md の「初回の公開手順」](deploy.md#4-初回の公開手順) を参照してください。
+修正と確認が終わったら、**手元で GitHub に送り、サーバーで取り込む**の2段階で本番（ロリポップ）に反映します。初めて公開するとき（GitHub・サーバーの準備）は [deploy.md の「初回の公開手順」](deploy.md#4-初回の公開手順) を参照してください。
 
-### 8-1. 公開前の確認と記録
-
-```bash
-cd ~/work/mellow
-docker compose exec app php artisan test --compact     # failed が無いこと
-git add -A && git commit -m "七五三の料金を変更"        # 変更内容を記録（9章）
-```
-
-> 公開用ファイルは**今ある `src/` の状態**から作られます（記録していない変更も含まれます）。記録してから作ると、「何を公開したか」があとで分かります。
-
-### 8-2. 公開用ファイルを作る
+### 8-1. 修正を記録する（手元）
 
 ```bash
 cd ~/work/mellow
-docker compose up -d                 # 起動していなければ
-scripts/build-release.sh
+git add -A && git commit -m "七五三の料金を変更"     # 何を変えたかを書く
 ```
 
-1〜2分ほどで、最後に次のように表示されれば完了です。
+VS Code の「ソース管理」から記録しても同じです（9章）。
+
+### 8-2. GitHub に送る（手元）
+
+```bash
+scripts/publish.sh
+```
+
+最後に次のように表示されれば完了です。
 
 ```
-✓ 完了: release/mellow-release.tar.gz ( 96M)
+✓ 送信しました。サーバーで次を実行すると本番に反映されます:
+    bash ~/mellow/scripts/deploy.sh
 ```
 
 このスクリプトは次のことを自動で行います。
 
-| 処理 | 内容 |
-|---|---|
-| ビルド | CSS・JavaScript（React）を本番用に変換して `src/public/build/` に出力 |
-| コピー | 本番に必要なファイルだけを `release/mellow-release/` に集める（テスト・開発用のファイル、`.env`、写真の元データは含めない） |
-| ライブラリ | 本番用のライブラリ（`vendor`）をインストール |
-| 設定 | 公開フォルダ用の `index.php` と、HTTPS へ転送する `.htaccess` を用意 |
-| 圧縮 | すべてを `release/mellow-release.tar.gz` にまとめる（これをアップロードする） |
+| 順 | 処理 | 内容 |
+|:-:|---|---|
+| 1 | 確認 | `main` ブランチか、記録していない変更が無いか（あれば止まるので、8-1 で記録する） |
+| 2 | テスト | 自動テストを実行（失敗したら止まる。7章） |
+| 3 | ビルド | React・CSS を本番用に変換して `src/public/build/` に出力し、変更があれば「本番用ビルドを更新」として記録 |
+| 4 | 送信 | GitHub へ送る（`git push`） |
 
-> `release/` は毎回作り直されます。中身を手で編集しないでください。
+> 開発環境（`docker compose up -d`）が起動している必要があります。
 
-### 8-3. アップロードして反映する
+### 8-3. 本番に反映する（サーバー）
 
 ```bash
-# 手元のMacから送る（アカウント名はロリポップのFTPアカウント）
-scp -P 2222 release/mellow-release.tar.gz アカウント名@ssh.lolipop.jp:~/
-
-# サーバーに入って配置
 ssh -p 2222 アカウント名@ssh.lolipop.jp
-rm -rf mellow-release && tar xzf mellow-release.tar.gz
-bash mellow-release/deploy.sh
+bash ~/mellow/scripts/deploy.sh
 exit
 ```
 
-`✓ 配置が完了しました` と表示されれば反映済みです。作業中（数十秒）はサイトに「メンテナンス中」と表示されます。`.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
+`✓ 本番に反映しました（記録のID 内容）` と表示されれば反映済みです。サーバーでは `git pull` で GitHub の内容を取り込み、ライブラリの更新・データベースの更新・キャッシュの作り直しまで自動で行います（詳しくは [deploy.md の 3-2](deploy.md#3-2-deploysh-がすること)）。作業中（数十秒）はサイトに「メンテナンス中」と表示されます。`.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
 
 ### 8-4. 公開後の確認
 
@@ -570,7 +563,7 @@ Git の記録を使って、問題のある変更を取り消してから、も�
 ```bash
 git log --oneline                    # 記録の一覧から、取り消したい記録のIDを確認
 git revert 記録のID                   # その変更を打ち消す記録を作る
-scripts/build-release.sh             # 作り直して 8-3 の手順で反映
+scripts/publish.sh                   # 送信して、8-3 の手順で反映
 ```
 
 > どの記録を取り消せばよいか分からない場合は、Claude Code に「さっき公開した〇〇の変更を元に戻したい」と頼んでください。
@@ -593,7 +586,7 @@ scripts/build-release.sh             # 作り直して 8-3 の手順で反映
 
 このプロジェクトは **Git** で変更の履歴を管理しています。修正がひと区切りしたら「記録（コミット）」しておくと、あとで元に戻したり、いつ何を変えたかを確認したりできます。
 
-> `.env`（パスワード類）・`release/`（公開用ファイル）・`vendor`・`node_modules`・`public/build` は記録しない設定になっています。
+> `.env`（パスワード類）・`vendor`・`node_modules`・`public/hot` は記録しない設定になっています。本番用のビルド結果（`public/build`）は記録します。
 
 **VS Code で操作する場合**（左端の「ソース管理」アイコン）
 
@@ -616,7 +609,7 @@ git log --oneline                # 記録の一覧
 
 **記録のタイミングの目安**: 本番に公開する前には必ず記録しておくと、「公開した時点の状態」に戻せるので安心です。
 
-> 他のパソコンでも作業したい・インターネット上にもバックアップしたい場合は、GitHub（非公開リポジトリ）に置くことができます。必要になったら Claude Code に頼んでください。
+> 記録は GitHub（非公開リポジトリ）にも送られ、本番サーバーはそこから取り込みます（8章）。別のパソコンで作業する場合は、GitHub から `git clone` して使えます。
 
 ### Claude Code に修正を頼む場合
 
