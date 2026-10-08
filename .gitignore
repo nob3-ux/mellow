@@ -1,5 +1,2 @@
-# 公開用ファイル（scripts/build-release.sh が毎回作り直す）
-/release/
-
 # macOS
 .DS_Store
