@@ -26,10 +26,10 @@ PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタ
 手元のMac                         GitHub（非公開）              ロリポップ
 ────────────────────             ────────────────             ─────────────────────────────
 修正して git commit
-scripts/publish.sh
-  ├ テスト
-  ├ 本番用ビルド・記録
-  └ git push ───────────────────→ main ブランチ
+テスト（php artisan test）
+本番用ビルド（npm run build）
+ビルド結果を git commit
+git push ───────────────────────→ main ブランチ
                                        │
                                        └──── git pull ────→ ~/web/mellow/        （すべてここ）
                                                              bash ~/web/mellow/scripts/deploy.sh
@@ -44,7 +44,7 @@ scripts/publish.sh
 | サーバーに GitHub 用の鍵（デプロイキー）を作る | ○ | |
 | サーバーにリポジトリを取り込む（`git clone`） | ○ | |
 | `.env`（本番の設定ファイル）を作る | ○ | |
-| 手元で `scripts/publish.sh`（テスト・ビルド・送信） | | ○ |
+| 手元でテスト・本番用ビルド・記録・`git push` | | ○ |
 | サーバーで `scripts/deploy.sh`（取り込み・反映） | ○ | ○ |
 | 管理者アカウントの作成・公開フォルダの切り替え | ○ | |
 
@@ -121,7 +121,7 @@ scripts/publish.sh
 - **公開フォルダの切り替え**：ps-mellow.jp をどのフォルダで表示するかは、ロリポップの管理画面で初回に1度だけ `mellow/src/public` に変更します（[4-9](#4-9-公開フォルダを切り替える)）。
 - **WordPress や `web/` 内の他のフォルダの変更・削除**
 - **管理者アカウントの作成**：初回に `admin:create mariko` を別途実行します（[4-8](#4-8-管理者アカウントを作る)）。
-- **React・CSS のビルド**：手元の `publish.sh` で行い、ビルド結果を GitHub に送っています。
+- **React・CSS のビルド**：手元で `npm run build` を実行し、ビルド結果を記録して GitHub に送ります（[5章](#5-2回目以降の更新手順)）。
 
 ---
 
@@ -347,22 +347,35 @@ cd ~/web/mellow/src
 
 ## 5. 2回目以降の更新手順
 
-**手元のMac**（修正を記録してから）
+**手元のMac**（開発環境を起動した状態で、次を順に実行）
 
 ```bash
 cd ~/work/mellow
-git add -A && git commit -m "七五三の料金を変更"     # 修正を記録
-scripts/publish.sh                                # テスト → 本番用ビルド → GitHub へ送信
+
+# 1. 修正を記録する（何を変えたかを書く）
+git add -A
+git commit -m "七五三の料金を変更"
+
+# 2. 自動テスト（failed が無いことを確認）
+docker compose exec app php artisan test --compact
+
+# 3. React・CSS を本番用にビルドする
+docker compose run --rm --no-deps node npm run build
+
+# 4. ビルド結果を記録する（変更が無い場合は「nothing to commit」と出るだけで問題なし）
+git add src/public/build
+git commit -m "本番用ビルドを更新" src/public/build
+
+# 5. GitHub へ送る
+git push origin main
 ```
 
-`publish.sh` は次のことを行います。記録していない変更があると止まるので、先に記録してください。
-
-| 順 | 処理 |
-|:-:|---|
-| 1 | `main` ブランチか、記録していない変更が無いかを確認 |
-| 2 | 自動テスト（失敗したら止まる） |
-| 3 | React・CSS を本番用にビルドし、変更があれば「本番用ビルドを更新」として記録 |
-| 4 | GitHub へ送信（`git push`） |
+| 手順 | 注意 |
+|---|---|
+| 2. テスト | `failed` が出たら、送らずに原因を直してください。 |
+| 3. ビルド | **毎回必ず実行してください。** 本番サーバーではビルドできないため、ここで作った CSS・JavaScript がそのまま本番で使われます。忘れると、React（予約フォーム・カレンダー等）や見た目の修正が本番に反映されません。 |
+| 4. ビルド結果の記録 | 最後の `src/public/build` の指定で、ビルド結果だけを記録します（他の変更が混ざらない）。 |
+| 5. 送信 | 送っただけでは本番は変わりません。続けてサーバーで反映します。 |
 
 **サーバー**
 
@@ -383,7 +396,7 @@ exit
 ```bash
 git log --oneline              # 取り消したい記録のIDを確認
 git revert 記録のID             # その変更を打ち消す記録を作る
-scripts/publish.sh             # 送信 → サーバーで deploy.sh
+# このあと 5章の手順 2〜5（テスト・ビルド・記録・git push）→ サーバーで deploy.sh
 ```
 
 ---
@@ -395,12 +408,11 @@ scripts/publish.sh             # 送信 → サーバーで deploy.sh
 | `ssh -T git@github.com` で接続できない | 4-3 の `~/.ssh/config` と、GitHub のデプロイキーの登録を確認する。`ssh -vT git@github.com` で詳しい原因が表示される。 |
 | `git clone`・`git pull` で「Permission denied (publickey)」 | デプロイキーが登録されていない、または別のリポジトリに登録している。 |
 | `deploy.sh` の `git pull` で失敗する | サーバー上でファイルを編集した可能性がある。`cd ~/web/mellow && git status` で確認し、`git checkout -- .` で元に戻してから再実行する（`.env` は消えない）。 |
-| `publish.sh` が「記録していない変更があります」で止まる | 表示されたファイルを確認し、`git add -A && git commit -m "内容"` で記録してから再実行する。 |
-| `publish.sh` の `git push` が「rejected」で失敗する | GitHub 側に手元に無い記録がある（別のパソコンで送った等）。`git pull` してから再実行する。 |
+| `git push` が「rejected」で失敗する | GitHub 側に手元に無い記録がある（別のパソコンで送った等）。`git pull` してから再実行する。 |
 | Composer のインストールで失敗する | 通信エラーなら再実行する。メモリ不足と表示される場合は、時間をおいて再実行するか、ロリポップのサポートに相談する。 |
 | 「500 Server Error」と表示される | `~/web/mellow/src/storage/logs/` のログを確認する。よくある原因: `.env` の値の誤り・`APP_KEY` が空・PHPのバージョンが8.4未満（「PHP設定」を確認）。 |
 | 「メンテナンス中」のまま戻らない | `cd ~/web/mellow/src && /usr/local/bin/php8.5 artisan up` で解除し、エラー内容を確認して再実行する。 |
-| デザインが崩れる（文字だけになる） | 手元で `publish.sh` を使わずに送った可能性がある（ビルド結果が古い・無い）。手元で `scripts/publish.sh` を実行し、サーバーで `deploy.sh` を実行する。 |
+| デザインが崩れる・React の修正が反映されない | ビルドを忘れて送った可能性がある。手元で 5章の手順 3〜5（ビルド・記録・`git push`）を行い、サーバーで `deploy.sh` を実行する。 |
 | フォーム送信で「送信できませんでした」 | ログを確認。メール設定（`MAIL_HOST`・`MAIL_PORT`・`MAIL_SCHEME`・パスワード）の誤りが多い。 |
 | フォーム送信や管理画面の保存が「403 Forbidden」になる | ロリポップの **WAF**（不正アクセス防止機能）が送信内容を誤って遮断している可能性がある。ユーザー専用ページの「WAF設定」でログを確認する。 |
 | `.env` を変えたのに反映されない | `bash ~/web/mellow/scripts/deploy.sh` を実行する（キャッシュが作り直される）。 |
@@ -416,9 +428,8 @@ scripts/publish.sh             # 送信 → サーバーで deploy.sh
 
 | ファイル | 役割 |
 |---|---|
-| `scripts/publish.sh` | 手元でテスト・本番用ビルド・ビルド結果の記録・GitHub への送信を行う |
 | `scripts/deploy.sh` | サーバーで `git pull`・Composer・DB更新・キャッシュ作成を行う |
-| `src/public/build/` | 本番用にビルドした CSS・JavaScript（`publish.sh` が更新して記録する） |
+| `src/public/build/` | 本番用にビルドした CSS・JavaScript（手元で `npm run build` して記録する） |
 | `.htaccess`（リポジトリ直下） | `src/public` 以外への外部アクセスを拒否する（本番サーバー用） |
 | `src/public/.htaccess` | `http://` を `https://` へ転送する設定を含む（手元の開発環境では使われない） |
 | `src/app/Http/Middleware/RedirectToCanonicalHost.php` | 本番で `APP_URL` 以外のURLからのアクセスを `APP_URL` へ転送する |

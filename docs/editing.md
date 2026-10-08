@@ -27,11 +27,11 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 ③ ブラウザで確認する       http://localhost:8000 （保存すると自動で再読み込み）
 ④ 自動テストを実行する     7章
 ⑤ Gitに記録する            git commit（9章「変更の履歴」）
-⑥ GitHub に送る            scripts/publish.sh（テスト・本番用ビルド・送信。8章）
+⑥ GitHub に送る            テスト → 本番用ビルド → ビルド結果を記録 → git push（8章）
 ⑦ 本番に反映する           サーバーで scripts/deploy.sh（git pull して反映。8章）
 ```
 
-修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥の `publish.sh` が自動で行います。
+修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥で公開する前に1回だけ行います。
 
 ---
 
@@ -89,7 +89,7 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 ```
 mellow/
 ├── docs/                       ✏️ 手順書（この文書など）
-├── scripts/                    ⚠️ publish.sh（手元から送信）・deploy.sh（サーバーで反映）
+├── scripts/                    ⚠️ deploy.sh（サーバーで反映）
 ├── docker/   compose.yaml      ⚠️ 開発環境（Docker）の設定
 └── src/                        Laravel 本体
     ├── resources/
@@ -113,7 +113,7 @@ mellow/
     ├── database/               ⚠️ データベースの構造・初期データ
     ├── tests/                  ⚠️ 自動テスト
     ├── public/images/          🚫 変換済みの写真（npm run images が作る）
-    ├── public/build/           🚫 本番用のビルド結果（publish.sh が更新して記録する）
+    ├── public/build/           🚫 本番用のビルド結果（npm run build が作る。記録して送る）
     ├── public/hot              🚫 開発サーバーの目印（記録されない）
     ├── vendor/  node_modules/  🚫 ライブラリ（自動でインストールされる）
     ├── storage/  bootstrap/cache/  🚫 ログ・キャッシュ
@@ -125,7 +125,7 @@ mellow/
 **特に注意すること**
 
 - `src/public/images/` の写真を直接置き換えたり、`images.json` を手で編集したりしないでください。写真は必ず `src/resources/images/` に置いて `npm run images` で変換します（[5-4](#5-4-写真を追加差し替える)）。
-- `src/public/build/` は `publish.sh` が作り直します。手で編集しないでください。
+- `src/public/build/` は `npm run build` が作り直します。手で編集しないでください。
 - 本番サーバー上のファイルは直接編集しないでください。修正は必ず手元で行い、GitHub 経由で反映します（直接編集すると次の `git pull` が失敗します）。
 - `views/components/` の部品を直すと、その部品を使っている**全ページ**が変わります。
 
@@ -507,38 +507,42 @@ docker compose exec app vendor/bin/pint --dirty
 
 修正と確認が終わったら、**手元で GitHub に送り、サーバーで取り込む**の2段階で本番（ロリポップ）に反映します。初めて公開するとき（GitHub・サーバーの準備）は [deploy.md の「初回の公開手順」](deploy.md#4-初回の公開手順) を参照してください。
 
-### 8-1. 修正を記録する（手元）
+### 8-1. GitHub に送る（手元）
+
+開発環境（`docker compose up -d`）を起動した状態で、次を順に実行します。
 
 ```bash
 cd ~/work/mellow
-git add -A && git commit -m "七五三の料金を変更"     # 何を変えたかを書く
+
+# 1. 修正を記録する（何を変えたかを書く）
+git add -A
+git commit -m "七五三の料金を変更"
+
+# 2. 自動テスト（failed が無いことを確認）
+docker compose exec app php artisan test --compact
+
+# 3. React・CSS を本番用にビルドする
+docker compose run --rm --no-deps node npm run build
+
+# 4. ビルド結果を記録する（変更が無い場合は「nothing to commit」と出るだけで問題なし）
+git add src/public/build
+git commit -m "本番用ビルドを更新" src/public/build
+
+# 5. GitHub へ送る
+git push origin main
 ```
 
-VS Code の「ソース管理」から記録しても同じです（9章）。
+| 手順 | 内容と注意 |
+|---|---|
+| 1. 記録 | VS Code の「ソース管理」から記録しても同じです（9章）。 |
+| 2. テスト | 全ページの表示・フォーム・旧URLの転送などを自動で確認します。`failed` が出たら、送らずに原因を直してください（7章）。 |
+| 3. ビルド | React・CSS を本番用に変換して `src/public/build/` に出力します。**毎回必ず実行してください。** 本番サーバーではビルドできないため、忘れると React（予約フォーム・カレンダー等）や見た目の修正が本番に反映されません。 |
+| 4. ビルド結果の記録 | 最後の `src/public/build` の指定で、ビルド結果だけを記録します（他の変更が混ざらない）。 |
+| 5. 送信 | GitHub へ送ります。送っただけでは本番は変わりません（続けて 8-3）。 |
 
-### 8-2. GitHub に送る（手元）
+### 8-2. 送った内容を確認する（任意）
 
-```bash
-scripts/publish.sh
-```
-
-最後に次のように表示されれば完了です。
-
-```
-✓ 送信しました。サーバーで次を実行すると本番に反映されます:
-    bash ~/web/mellow/scripts/deploy.sh
-```
-
-このスクリプトは次のことを自動で行います。
-
-| 順 | 処理 | 内容 |
-|:-:|---|---|
-| 1 | 確認 | `main` ブランチか、記録していない変更が無いか（あれば止まるので、8-1 で記録する） |
-| 2 | テスト | 自動テストを実行（失敗したら止まる。7章） |
-| 3 | ビルド | React・CSS を本番用に変換して `src/public/build/` に出力し、変更があれば「本番用ビルドを更新」として記録 |
-| 4 | 送信 | GitHub へ送る（`git push`） |
-
-> 開発環境（`docker compose up -d`）が起動している必要があります。
+GitHub のリポジトリのページで、最新の記録（「本番用ビルドを更新」など）が表示されていれば送信できています。
 
 ### 8-3. 本番に反映する（サーバー）
 
@@ -563,7 +567,7 @@ Git の記録を使って、問題のある変更を取り消してから、も�
 ```bash
 git log --oneline                    # 記録の一覧から、取り消したい記録のIDを確認
 git revert 記録のID                   # その変更を打ち消す記録を作る
-scripts/publish.sh                   # 送信して、8-3 の手順で反映
+# このあと 8-1 の手順 2〜5（テスト・ビルド・記録・git push）→ 8-3 で反映
 ```
 
 > どの記録を取り消せばよいか分からない場合は、Claude Code に「さっき公開した〇〇の変更を元に戻したい」と頼んでください。
