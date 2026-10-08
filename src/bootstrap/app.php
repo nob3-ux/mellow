@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // 本番で APP_URL と違うURL（初期ドメイン経由など）から来たアクセスを APP_URL へ転送する
+        $middleware->prepend(\App\Http\Middleware\RedirectToCanonicalHost::class);
+
         // ログインが必要なのは管理画面のみ
         $middleware->redirectGuestsTo(fn () => route('admin.login'));
         $middleware->redirectUsersTo(fn () => route('admin.availabilities'));
