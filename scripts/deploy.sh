@@ -2,18 +2,19 @@
 #
 # 【サーバー上で実行】GitHub から最新の内容を取り込み（git pull）、本番に反映する。
 #
-#   初回:   bash ~/mellow/scripts/deploy.sh --first
-#   更新時: bash ~/mellow/scripts/deploy.sh
+#   初回:   bash ~/web/mellow/scripts/deploy.sh --first
+#   更新時: bash ~/web/mellow/scripts/deploy.sh
+#
+# リポジトリ（~/web/mellow）の中だけで完結する。ドメインの公開フォルダには mellow/src/public を指定する。
 #
 # 行うこと:
 #   1. メンテナンス表示（2回目以降）
 #   2. git pull で最新の内容を取り込む
-#   3. 本番用ライブラリ（Composer）をインストール
-#   4. 公開フォルダ（~/web/mellow）を src/public へのシンボリックリンクにする（初回のみ）
-#   5. データベースを更新（--first のときは初期データも投入）
-#   6. キャッシュを作り直し、メンテナンス表示を解除
+#   3. 本番用ライブラリ（Composer）をインストール（Composer はリポジトリ内に自動で用意）
+#   4. データベースを更新（--first のときは初期データも投入）
+#   5. キャッシュを作り直し、メンテナンス表示を解除
 #
-# 場所を変える場合は環境変数で指定: PUBLIC_DIR（公開フォルダ）・PHP（PHPコマンド）・COMPOSER_PHAR
+# 変更する場合は環境変数で指定: PHP（PHPコマンド）・COMPOSER_PHAR
 #
 set -euo pipefail
 
@@ -27,8 +28,7 @@ trap 'rm -f "$MELLOW_DEPLOY_COPY"' EXIT
 
 REPO="$MELLOW_REPO"
 APP="$REPO/src"
-PUBLIC_DIR="${PUBLIC_DIR:-$HOME/web/mellow}"
-COMPOSER_PHAR="${COMPOSER_PHAR:-$HOME/bin/composer.phar}"
+COMPOSER_PHAR="${COMPOSER_PHAR:-$REPO/composer.phar}"
 FIRST=false
 [ "${1:-}" = "--first" ] && FIRST=true
 
@@ -68,24 +68,11 @@ git -C "$REPO" pull --ff-only
 echo "▶ 本番用ライブラリをインストール（Composer）"
 if [ ! -f "$COMPOSER_PHAR" ]; then
     echo "  Composer を $COMPOSER_PHAR にダウンロードします"
-    mkdir -p "$(dirname "$COMPOSER_PHAR")"
     curl -fsSL https://getcomposer.org/download/latest-stable/composer.phar -o "$COMPOSER_PHAR"
 fi
 # レンタルサーバーのメモリ制限で失敗しないよう、上限を外して実行する
 "$PHP_BIN" -d memory_limit=-1 "$COMPOSER_PHAR" install \
     --working-dir="$APP" --no-dev --optimize-autoloader --no-interaction --no-progress
-
-echo "▶ 公開フォルダ: $PUBLIC_DIR → $APP/public"
-if [ -L "$PUBLIC_DIR" ]; then
-    echo "  設定済み"
-elif [ -e "$PUBLIC_DIR" ]; then
-    echo "エラー: $PUBLIC_DIR が既にあります（シンボリックリンクではない）。中身を確認し、退避してから再実行してください。" >&2
-    exit 1
-else
-    mkdir -p "$(dirname "$PUBLIC_DIR")"
-    ln -s "$APP/public" "$PUBLIC_DIR"
-    echo "  シンボリックリンクを作成しました"
-fi
 
 chmod -R u+rwX,go+rX "$APP/storage" "$APP/bootstrap/cache"
 

@@ -51,4 +51,4 @@ git push origin main
 
 echo
 echo "✓ 送信しました。サーバーで次を実行すると本番に反映されます:"
-echo "    bash ~/mellow/scripts/deploy.sh"
+echo "    bash ~/web/mellow/scripts/deploy.sh"

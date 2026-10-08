@@ -1,0 +1,15 @@
+# このリポジトリは本番サーバーの公開領域（~/web/mellow）に置かれる。
+# ドメインの公開フォルダは src/public のみ。それ以外（.env・.git・ソースコード等）は
+# ロリポップの初期ドメイン経由などで直接アクセスされても表示しない。
+#
+# src/public/.htaccess に独自の RewriteEngine があるため、公開フォルダ内の表示には影響しない。
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^ - [F]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    Require all denied
+</IfModule>
