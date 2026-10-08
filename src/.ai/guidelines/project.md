@@ -10,7 +10,7 @@
   - 整形: `docker compose exec -T app vendor/bin/pint --dirty`
   - フロントのビルド: `docker compose run --rm --no-deps node npm run build`（開発中は `docker compose up -d` で node コンテナが `npm run dev` を起動する）
 - サービス: web（Nginx, http://localhost:8000）/ app（PHP-FPM）/ node（Vite, :5173）/ db（MySQL 8.4）/ phpmyadmin（http://localhost:8080）/ mailpit（http://localhost:8025）。
-- 本番はロリポップ（共用レンタルサーバー・Node.js なし）の `https://ps-mellow.jp/`。SSR や Node 常駐を前提にした仕組みは使わない。デプロイは GitHub 経由：手元で `../scripts/publish.sh`（テスト・本番用ビルド・`src/public/build` を記録・push）、サーバーで `~/mellow/scripts/deploy.sh`（git pull・composer・migrate・optimize）。手順は `../docs/deploy.md`。ビルド結果 `public/build` は Git に記録する。
+- 本番はロリポップ（共用レンタルサーバー・Node.js なし）の `https://ps-mellow.jp/`。SSR や Node 常駐を前提にした仕組みは使わない。デプロイは GitHub 経由：手元で `../scripts/publish.sh`（テスト・本番用ビルド・`src/public/build` を記録・push）、サーバーで `~/web/mellow/scripts/deploy.sh`（git pull・composer・migrate・optimize）。手順は `../docs/deploy.md`。ビルド結果 `public/build` は Git に記録する。本番はリポジトリ全体を `~/web/mellow` に置き、公開フォルダは `mellow/src/public`。リポジトリ直下の `.htaccess` で src/public 以外を拒否し、`RedirectToCanonicalHost` で APP_URL 以外のホストを転送する。
 - 旧WordPress（`/bb/` 以下）のURLは `config/pages.php` の `redirects` で新しいページへ301転送する。
 
 ## 構成

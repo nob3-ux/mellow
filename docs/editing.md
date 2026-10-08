@@ -72,7 +72,7 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 - 実行するとパスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。
 - 既にあるユーザー名を指定するとパスワードの変更、新しいユーザー名を指定するとアカウントの追加になります。
 - ユーザー名に使えるのは半角英数字・`-`・`_`（3〜50文字）です。
-- 本番では、サーバーにSSHで入って `cd ~/mellow/src && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
+- 本番では、サーバーにSSHで入って `cd ~/web/mellow/src && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
 
 ---
 
@@ -407,7 +407,7 @@ docker compose run --rm --no-deps node npm run images
 フォームの通知先は `.env` の `SITE_MAIL_TO` です。
 
 - 手元: `src/.env`
-- 本番: サーバーの `~/mellow/src/.env`（変更後に `bash ~/mellow/scripts/deploy.sh` を実行すると反映される）
+- 本番: サーバーの `~/web/mellow/src/.env`（変更後に `bash ~/web/mellow/scripts/deploy.sh` を実行すると反映される）
 
 ### 5-12. トップの Instagram 欄を更新する
 
@@ -526,7 +526,7 @@ scripts/publish.sh
 
 ```
 ✓ 送信しました。サーバーで次を実行すると本番に反映されます:
-    bash ~/mellow/scripts/deploy.sh
+    bash ~/web/mellow/scripts/deploy.sh
 ```
 
 このスクリプトは次のことを自動で行います。
@@ -544,7 +544,7 @@ scripts/publish.sh
 
 ```bash
 ssh -p 2222 アカウント名@ssh.lolipop.jp
-bash ~/mellow/scripts/deploy.sh
+bash ~/web/mellow/scripts/deploy.sh
 exit
 ```
 
