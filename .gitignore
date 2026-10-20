@@ -1,5 +1,5 @@
 # macOS
 .DS_Store
 
-# 本番サーバーで deploy.sh がダウンロードする Composer
-/composer.phar
+# 本番サーバーに手動で入れる Composer・Node.js（docs/deploy.md）
+/.tools/
