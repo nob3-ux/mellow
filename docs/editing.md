@@ -27,11 +27,11 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 ③ ブラウザで確認する       http://localhost:8000 （保存すると自動で再読み込み）
 ④ 自動テストを実行する     7章
 ⑤ Gitに記録する            git commit（9章「変更の履歴」）
-⑥ GitHub に送る            テスト → 本番用ビルド → ビルド結果を記録 → git push（8章）
-⑦ 本番に反映する           サーバーで scripts/deploy.sh（git pull して反映。8章）
+⑥ GitHub に送る            git push（8章）
+⑦ 本番に反映する           サーバーで git pull → composer → npm（ビルド）→ artisan（8章）
 ```
 
-修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥で公開する前に1回だけ行います。
+修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑦でサーバー上で行います。
 
 ---
 
@@ -60,7 +60,7 @@ docker compose down       # 停止
 | パスワード | 別途保管しているもの（この手順書には記載しない） |
 | ログイン画面 | 手元: http://localhost:8000/admin ／ 本番: https://ps-mellow.jp/admin |
 
-> このログイン情報は手元の開発環境に設定済みです。本番では、初回の公開時に同じ内容でアカウントを作成します（[deploy.md の 4-8](deploy.md#4-8-管理者アカウントを作る)）。
+> このログイン情報は手元の開発環境に設定済みです。本番では、初回の公開時に同じ内容でアカウントを作成します（[deploy.md の 4-9](deploy.md#4-9-管理者アカウントを作る)）。
 > パスワードは、この手順書（GitHub に保存される）には書かず、手帳やパスワード管理アプリなどで別に保管してください。
 
 **パスワードを変更する・アカウントを追加する**
@@ -72,7 +72,7 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 - 実行するとパスワード（8文字以上）の入力を求められます。入力した文字は「•」で表示されます。
 - 既にあるユーザー名を指定するとパスワードの変更、新しいユーザー名を指定するとアカウントの追加になります。
 - ユーザー名に使えるのは半角英数字・`-`・`_`（3〜50文字）です。
-- 本番では、サーバーにSSHで入って `cd ~/web/mellow/src && /usr/local/bin/php8.5 artisan admin:create mariko` を実行します。
+- 本番では、サーバーにSSHで入って `cd ~/web/mellow/src && php artisan admin:create mariko` を実行します。
 
 ---
 
@@ -89,7 +89,6 @@ docker compose exec app php artisan admin:create mariko        # 手元（mariko
 ```
 mellow/
 ├── docs/                       ✏️ 手順書（この文書など）
-├── scripts/                    ⚠️ deploy.sh（サーバーで反映）
 ├── docker/   compose.yaml      ⚠️ 開発環境（Docker）の設定
 └── src/                        Laravel 本体
     ├── resources/
@@ -113,7 +112,7 @@ mellow/
     ├── database/               ⚠️ データベースの構造・初期データ
     ├── tests/                  ⚠️ 自動テスト
     ├── public/images/          🚫 変換済みの写真（npm run images が作る）
-    ├── public/build/           🚫 本番用のビルド結果（npm run build が作る。記録して送る）
+    ├── public/build/           🚫 ビルド結果（npm run build が作る。Gitには記録しない）
     ├── public/hot              🚫 開発サーバーの目印（記録されない）
     ├── vendor/  node_modules/  🚫 ライブラリ（自動でインストールされる）
     ├── storage/  bootstrap/cache/  🚫 ログ・キャッシュ
@@ -125,7 +124,7 @@ mellow/
 **特に注意すること**
 
 - `src/public/images/` の写真を直接置き換えたり、`images.json` を手で編集したりしないでください。写真は必ず `src/resources/images/` に置いて `npm run images` で変換します（[5-4](#5-4-写真を追加差し替える)）。
-- `src/public/build/` は `npm run build` が作り直します。手で編集しないでください。
+- `src/public/build/` は `npm run build` が作り直します。手で編集しないでください（本番ではサーバーでビルドします）。
 - 本番サーバー上のファイルは直接編集しないでください。修正は必ず手元で行い、GitHub 経由で反映します（直接編集すると次の `git pull` が失敗します）。
 - `views/components/` の部品を直すと、その部品を使っている**全ページ**が変わります。
 
@@ -407,7 +406,7 @@ docker compose run --rm --no-deps node npm run images
 フォームの通知先は `.env` の `SITE_MAIL_TO` です。
 
 - 手元: `src/.env`
-- 本番: サーバーの `~/web/mellow/src/.env`（変更後に `bash ~/web/mellow/scripts/deploy.sh` を実行すると反映される）
+- 本番: サーバーの `~/web/mellow/src/.env`（変更後に `cd ~/web/mellow/src && php artisan optimize` を実行すると反映される）
 
 ### 5-12. トップの Instagram 欄を更新する
 
@@ -521,14 +520,7 @@ git commit -m "七五三の料金を変更"
 # 2. 自動テスト（failed が無いことを確認）
 docker compose exec app php artisan test --compact
 
-# 3. React・CSS を本番用にビルドする
-docker compose run --rm --no-deps node npm run build
-
-# 4. ビルド結果を記録する（変更が無い場合は「nothing to commit」と出るだけで問題なし）
-git add src/public/build
-git commit -m "本番用ビルドを更新" src/public/build
-
-# 5. GitHub へ送る
+# 3. GitHub へ送る
 git push origin main
 ```
 
@@ -536,23 +528,34 @@ git push origin main
 |---|---|
 | 1. 記録 | VS Code の「ソース管理」から記録しても同じです（9章）。 |
 | 2. テスト | 全ページの表示・フォーム・旧URLの転送などを自動で確認します。`failed` が出たら、送らずに原因を直してください（7章）。 |
-| 3. ビルド | React・CSS を本番用に変換して `src/public/build/` に出力します。**毎回必ず実行してください。** 本番サーバーではビルドできないため、忘れると React（予約フォーム・カレンダー等）や見た目の修正が本番に反映されません。 |
-| 4. ビルド結果の記録 | 最後の `src/public/build` の指定で、ビルド結果だけを記録します（他の変更が混ざらない）。 |
-| 5. 送信 | GitHub へ送ります。送っただけでは本番は変わりません（続けて 8-3）。 |
+| 3. 送信 | GitHub へ送ります。送っただけでは本番は変わりません（続けて 8-3）。React・CSS のビルドはサーバーで行うので、手元でのビルドは不要です。 |
 
 ### 8-2. 送った内容を確認する（任意）
 
-GitHub のリポジトリのページで、最新の記録（「本番用ビルドを更新」など）が表示されていれば送信できています。
+GitHub のリポジトリのページで、最新の記録（「七五三の料金を変更」など）が表示されていれば送信できています。
 
 ### 8-3. 本番に反映する（サーバー）
 
 ```bash
 ssh -p 2222 アカウント名@ssh.lolipop.jp
-bash ~/web/mellow/scripts/deploy.sh
+cd ~/web/mellow/src
+
+php artisan down --retry=30                         # 1. メンテナンス表示にする
+git pull                                            # 2. GitHub から取り込む
+composer install --no-dev --optimize-autoloader     # 3. PHPのライブラリを更新
+npm ci                                              # 4. ビルド用の道具を更新
+npm run build                                       # 5. React・CSS をビルド
+php artisan migrate --force                         # 6. データベースの変更を反映
+php artisan optimize                                # 7. キャッシュを作り直す
+php artisan up                                      # 8. メンテナンス表示を解除
+
 exit
 ```
 
-`✓ 本番に反映しました（記録のID 内容）` と表示されれば反映済みです。サーバーでは `git pull` で GitHub の内容を取り込み、ライブラリの更新・データベースの更新・キャッシュの作り直しまで自動で行います（詳しくは [deploy.md の 3-2](deploy.md#3-2-deploysh-がすること)）。作業中（数十秒）はサイトに「メンテナンス中」と表示されます。`.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
+- 作業中はサイトに「メンテナンス中」と表示されます。**途中でエラーが出ても、最後に必ず `php artisan up` を実行してください。**
+- 手順 5（ビルド）は**毎回必ず実行してください。** 忘れると React（予約フォーム・カレンダー等）や見た目の修正が反映されません。
+- `.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
+- 各コマンドの意味やエラーへの対処は [deploy.md の5章・6章](deploy.md#5-2回目以降の更新手順) を参照してください。
 
 ### 8-4. 公開後の確認
 
@@ -567,7 +570,7 @@ Git の記録を使って、問題のある変更を取り消してから、も�
 ```bash
 git log --oneline                    # 記録の一覧から、取り消したい記録のIDを確認
 git revert 記録のID                   # その変更を打ち消す記録を作る
-# このあと 8-1 の手順 2〜5（テスト・ビルド・記録・git push）→ 8-3 で反映
+# このあと 8-1 の手順 2〜3（テスト・git push）→ 8-3 で反映
 ```
 
 > どの記録を取り消せばよいか分からない場合は、Claude Code に「さっき公開した〇〇の変更を元に戻したい」と頼んでください。
@@ -590,7 +593,7 @@ git revert 記録のID                   # その変更を打ち消す記録を�
 
 このプロジェクトは **Git** で変更の履歴を管理しています。修正がひと区切りしたら「記録（コミット）」しておくと、あとで元に戻したり、いつ何を変えたかを確認したりできます。
 
-> `.env`（パスワード類）・`vendor`・`node_modules`・`public/hot` は記録しない設定になっています。本番用のビルド結果（`public/build`）は記録します。
+> `.env`（パスワード類）・`vendor`・`node_modules`・`public/build`（ビルド結果）・`public/hot` は記録しない設定になっています。
 
 **VS Code で操作する場合**（左端の「ソース管理」アイコン）
 
