@@ -3,3 +3,6 @@
 
 # 本番サーバーに手動で入れる Composer・Node.js（docs/deploy.md）
 /.tools/
+
+# 各自のパソコンのポート設定（docs/setup.md）
+/.env

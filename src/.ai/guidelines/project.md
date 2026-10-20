@@ -23,7 +23,7 @@
   - ルート名に「.」を含む（`plans.shichigosan` など）ため、`config('pages.pages')[$name]` のように配列から引く。`config("pages.pages.{$name}")` は使わない。
 - 店舗情報・ナビ・プラン一覧は `config/site.php`、フォームの項目は `config/forms.php`（サーバー検証と React フォームの両方が参照）。
 - 画像は `public/images/<key>-{幅}.webp`。必ず `<x-picture src="<key>">` で出力する（srcset・幅高さ・遅延読み込みを付与）。サイズ情報は `resources/data/images.json`。新しい写真は `resources/images/<key>.jpg` に置き `docker compose run --rm --no-deps node npm run images` で変換する（public/images と images.json は手で編集しない）。
-- 文章・料金・写真などの修正手順は `../docs/editing.md`。料金は複数箇所（プランページ・plans/index・config/site.php・config/pages.php の description・config/forms.php）にあるので、変更時はすべて揃える。
+- メンバーの開発環境の作り方は `../docs/setup.md`（`.env.example` は Docker の開発環境の値。リポジトリ直下の `.env` は各自のポート設定）。文章・料金・写真などの修正手順は `../docs/editing.md`。料金は複数箇所（プランページ・plans/index・config/site.php・config/pages.php の description・config/forms.php）にあるので、変更時はすべて揃える。
 - 共通部品は `resources/views/components/`（各ファイル先頭のコメントに使い方）。ページは `<x-layouts.app :seo="$seo">` で包み、h1 は `<x-page-hero>` に1つだけ。
 - WordPress 由来のクラス名・ディレクトリ（wp-content、wp-block-* など）は使わない。
 
