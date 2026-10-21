@@ -3,8 +3,9 @@
 PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタルサーバー**の `https://ps-mellow.jp/`（ドメイン直下）に公開・更新するための手順です。
 
 - ソースコードは **GitHub（非公開リポジトリ）** に置き、サーバーは **`git pull` で取り込み**ます。
-- サーバーでの作業（Composer・npm・artisan）は、**この手順書のコマンドを1つずつ手動で**実行します。
-- **Composer と Node.js（npm）はサーバーに手動で入れ**、PHPのライブラリのインストールと React・CSS のビルドもサーバーで行います。
+- サーバーでの作業（Composer・artisan）は、**この手順書のコマンドを1つずつ手動で**実行します。
+- React・CSS の**ビルドは手元のMacで行い、ビルド結果（`src/public/build`）も Git に記録して送ります**。サーバーに Node.js は不要です。
+- **Composer はサーバーに手動で入れ**、PHP のライブラリのインストールはサーバーで行います。
 - 新サイトに関するものは、サーバーの **`~/web/mellow/` の1つのフォルダ**にまとめます。
 - 現在の WordPress（`https://ps-mellow.jp/bb/`）はそのまま残し、ドメインの**公開フォルダを切り替える**ことで新サイトに移行します。問題があれば設定を戻すだけで元に戻せます。
 - 旧サイトのURL（`/bb/753plan/` など）は、新サイトの対応するページへ自動で転送（301）されます。
@@ -20,7 +21,6 @@ PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタ
 4. [初回の公開手順](#4-初回の公開手順)
 5. [2回目以降の更新手順](#5-2回目以降の更新手順)
 6. [困ったときは](#6-困ったときは)
-7. [付録: サーバーで Node.js が動かない場合](#7-付録-サーバーで-nodejs-が動かない場合)
 
 ---
 
@@ -31,11 +31,11 @@ PHOTO STUDIO MELLOW のサイト（Laravel）を、**ロリポップ！レンタ
 ──────────────────          ────────────────          ─────────────────────────────────
 修正して git commit
 テスト
+React・CSS をビルド
+ビルド結果を git commit
 git push ─────────────────→ main ブランチ ── git pull ─→ php artisan down
-                                                          git pull
+                                                          git pull           （ビルド結果も届く）
                                                           composer install   （PHPのライブラリ）
-                                                          npm ci             （ビルド用の道具）
-                                                          npm run build      （React・CSS）
                                                           php artisan migrate
                                                           php artisan optimize
                                                           php artisan up
@@ -47,10 +47,10 @@ git push ─────────────────→ main ブラン�
 | GitHub にリポジトリを作り、手元から送る | ○ | |
 | サーバーに GitHub 用の鍵（デプロイキー）を作る | ○ | |
 | サーバーにリポジトリを取り込む（`git clone`） | ○ | |
-| サーバーに Composer・Node.js を入れる | ○ | |
+| サーバーに Composer を入れる | ○ | |
 | `.env`（本番の設定ファイル）を作る | ○ | |
-| 手元で記録・テスト・`git push` | | ○ |
-| サーバーで取り込み・インストール・ビルド・反映（コマンドを手動で実行） | ○ | ○ |
+| 手元で記録・テスト・ビルド・ビルド結果の記録・`git push` | | ○ |
+| サーバーで取り込み・インストール・反映（コマンドを手動で実行） | ○ | ○ |
 | 管理者アカウントの作成・公開フォルダの切り替え | ○ | |
 
 ---
@@ -62,16 +62,13 @@ git push ─────────────────→ main ブラン�
 | プラン | **スタンダード・ハイスピード・エンタープライズのいずれか**（SSHが使えるプラン） | ユーザー専用ページ |
 | PHP | **8.4 以上**（推奨 8.5） | ユーザー専用ページ「PHP設定」 |
 | Git | サーバーで `git` コマンドが使えること | SSH（4-4） |
-| Node.js が動くこと | サーバーの glibc（OSの基本部品）が **2.28 以上** | SSH（4-5） |
-| 空き容量 | 約 1GB（サイト・画像・ライブラリ・Node.js） | ユーザー専用ページ |
+| 空き容量 | 約 500MB（サイト・画像・ライブラリ） | ユーザー専用ページ |
 | データベース | MySQL（ロリポップで作成） | ユーザー専用ページ「データベース」 |
 | SSL | ps-mellow.jp の独自SSLが有効（現在のWordPressで有効なはず） | ユーザー専用ページ「独自SSL証明書導入」 |
 | GitHub | アカウントがあり、非公開リポジトリを作れること | https://github.com |
 
 > **PHP 8.3 以下では動きません。** Laravel 13 が使う部品が PHP 8.4.1 以上を必要とします。
 > PHP のバージョンはドメインごとに設定します。WordPress（/bb/）も同じドメインのため、PHP を上げると WordPress も新しい PHP で動きます。切り替えまでの間、WordPress の表示に問題がないか確認してください。
-
-> **Node.js について**：ロリポップは Node.js を提供していないため、自分でサーバーに入れます（4-5）。サーバーのOSが古い（glibc が 2.28 未満）と動かないため、その場合は [7章](#7-付録-サーバーで-nodejs-が動かない場合) の方法（ビルドだけ手元で行う）に切り替えます。
 
 ---
 
@@ -86,16 +83,14 @@ git push ─────────────────→ main ブラン�
     ├── .htaccess                     ← src/public 以外への外部アクセスを拒否（下記）
     ├── .tools/                       ← 4-5 で手動で入れる道具（Gitには記録しない）
     │   ├── bin/php                   ←   PHP 8.5 への近道（リンク）
-    │   ├── bin/composer              ←   Composer
-    │   └── node/                     ←   Node.js（npm を含む）
+    │   └── bin/composer              ←   Composer
     ├── docs/  docker/ ...
     └── src/                          ← Laravel 本体
         ├── .env                      ← サーバー上で作成（Gitには記録されない）
         ├── vendor/                   ← composer install が作る
-        ├── node_modules/             ← npm ci が作る（ビルド用の道具）
         ├── storage/                  ← ログ・セッション（更新しても残る）
         └── public/                   ← ★ ps-mellow.jp の公開フォルダ（mellow/src/public）
-            └── build/                ←   npm run build が作る CSS・JavaScript
+            └── build/                ←   手元でビルドした CSS・JavaScript（git pull で届く）
 ```
 
 > SSH の鍵（`~/.ssh/`）と、コマンドの設定（`~/.bash_profile`）だけは、決まりでホームフォルダに置きます。
@@ -104,7 +99,7 @@ git push ─────────────────→ main ブラン�
 
 `web/` の中は、ロリポップの初期ドメイン（`○○.lolipop.jp` など）から `https://初期ドメイン/mellow/...` の形で直接見えてしまいます。そのため、
 
-- リポジトリの一番上の `.htaccess` で、`src/public` 以外（`.env`・`.git`・`.tools`・`node_modules`・プログラム・ログなど）へのアクセスをすべて拒否（403）しています。
+- リポジトリの一番上の `.htaccess` で、`src/public` 以外（`.env`・`.git`・`.tools`・プログラム・ログなど）へのアクセスをすべて拒否（403）しています。
 - 初期ドメインから `src/public` を開かれた場合は、`.env` の `APP_URL`（`https://ps-mellow.jp`）へ自動で転送されます（同じ内容が別のURLで検索エンジンに登録されるのを防ぐため）。
 
 公開前に、この保護が効いていることを確認します（[4-10](#4-10-外から見えないことを確認する)）。
@@ -190,18 +185,15 @@ git clone git@github.com:GitHubのユーザー名/リポジトリ名.git mellow
 
 - 取り込み先は必ず `~/web/mellow` にしてください（`web` の中の `mellow` フォルダ）。
 
-### 4-5. Composer と Node.js を入れる
+### 4-5. Composer を入れる
 
-**① サーバーの情報を確認する**
+**① PHP 8.5 の場所を確認する**
 
 ```bash
-ls /usr/local/bin/php8.5 || ls /usr/local/php/8.5/bin/php    # PHP 8.5 の場所（どちらかが表示される）
-ldd --version | head -1                                      # glibc の版（2.28 以上なら Node.js が動く）
-uname -m                                                     # x86_64 と表示されること
+ls /usr/local/bin/php8.5 || ls /usr/local/php/8.5/bin/php    # どちらかが表示される
 ```
 
-- glibc が **2.28 未満**の場合、この手順の Node.js は動きません。①〜②の Composer までを行い、Node.js は入れずに [7章](#7-付録-サーバーで-nodejs-が動かない場合) に進んでください。
-- PHP 8.5 の場所は、以降 `/usr/local/bin/php8.5` として書きます。`/usr/local/php/8.5/bin/php` だった場合は読み替えてください。
+以降 `/usr/local/bin/php8.5` として書きます。`/usr/local/php/8.5/bin/php` だった場合は読み替えてください。
 
 **② 道具を置くフォルダを作り、PHP と Composer を入れる**
 
@@ -218,23 +210,12 @@ bin/php composer-setup.php --install-dir=bin --filename=composer
 rm composer-setup.php
 ```
 
-**③ Node.js を入れる**（Node.js 24 の最新版）
-
-```bash
-cd ~/web/mellow/.tools
-NODE_FILE=$(curl -fsSL https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt | grep -oE 'node-v[0-9.]+-linux-x64\.tar\.gz' | head -1)
-echo $NODE_FILE                   # node-v24.xx.x-linux-x64.tar.gz と表示される
-curl -fsSLO https://nodejs.org/dist/latest-v24.x/$NODE_FILE
-tar xzf $NODE_FILE && rm $NODE_FILE
-mv node-v*-linux-x64 node
-```
-
-**④ コマンドを使えるように設定する**（ログインのたびに自動で読み込まれる）
+**③ コマンドを使えるように設定する**（ログインのたびに自動で読み込まれる）
 
 ```bash
 cat >> ~/.bash_profile <<'EOF'
-# PHOTO STUDIO MELLOW: PHP 8.5・Composer・Node.js（~/web/mellow/.tools）
-export PATH="$HOME/web/mellow/.tools/bin:$HOME/web/mellow/.tools/node/bin:$PATH"
+# PHOTO STUDIO MELLOW: PHP 8.5・Composer（~/web/mellow/.tools）
+export PATH="$HOME/web/mellow/.tools/bin:$PATH"
 export COMPOSER_MEMORY_LIMIT=-1
 EOF
 source ~/.bash_profile
@@ -242,33 +223,25 @@ source ~/.bash_profile
 
 `COMPOSER_MEMORY_LIMIT=-1` は、レンタルサーバーのメモリ制限で Composer が止まるのを防ぐ設定です。
 
-**⑤ 確認する**
+**④ 確認する**
 
 ```bash
 php -v          # PHP 8.5.x
 composer -V     # Composer version 2.x
-node -v         # v24.x.x
-npm -v          # 11.x
 ```
 
-4つとも表示されれば完了です。`node -v` でエラー（`GLIBC_2.28 not found` など）が出た場合は、Node.js がこのサーバーでは動きません。`rm -rf ~/web/mellow/.tools/node` で削除し、[7章](#7-付録-サーバーで-nodejs-が動かない場合) に進んでください。
+2つとも表示されれば完了です。
 
-### 4-6. ライブラリを入れて、React・CSS をビルドする
+### 4-6. PHP のライブラリを入れる
 
 ```bash
 cd ~/web/mellow/src
 composer install --no-dev --optimize-autoloader     # PHPのライブラリ（vendor/）
-npm ci                                              # ビルド用の道具（node_modules/）
-npm run build                                       # React・CSS をビルド（public/build/）
 ```
 
-最後に `✓ built in ...` と表示されれば成功です。
+`composer.lock` に書かれた版どおりに、本番用の PHP ライブラリだけを入れます。
 
-| コマンド | 内容 |
-|---|---|
-| `composer install --no-dev --optimize-autoloader` | `composer.lock` に書かれた版どおりに、本番用の PHP ライブラリだけを入れる |
-| `npm ci` | `package-lock.json` に書かれた版どおりに、ビルド用の道具を入れ直す（手元と同じ版になる） |
-| `npm run build` | 予約フォーム・カレンダー等の React と CSS を本番用に変換する |
+React・CSS のビルド結果（`src/public/build/`）は、手元でビルドして Git に記録したものが 4-4 の取り込みで届いています。`ls ~/web/mellow/src/public/build` で `manifest.json` と `assets` が表示されることを確認してください（無い場合は、手元で 5-1 の手順 3〜5 を行ってから、サーバーで `cd ~/web/mellow && git pull`）。
 
 ### 4-7. `.env`（本番の設定ファイル）を作る
 
@@ -411,7 +384,9 @@ php artisan admin:create mariko
 
 ## 5. 2回目以降の更新手順
 
-### 5-1. 手元のMac（記録・テスト・送信）
+### 5-1. 手元のMac（記録・テスト・ビルド・送信）
+
+開発環境（`docker compose up -d`）を起動した状態で、次を順に実行します。
 
 ```bash
 cd ~/work/mellow
@@ -423,11 +398,23 @@ git commit -m "七五三の料金を変更"
 # 2. 自動テスト（failed が無いことを確認）
 docker compose exec app php artisan test --compact
 
-# 3. GitHub へ送る
+# 3. React・CSS を本番用にビルドする
+docker compose run --rm --no-deps node npm run build
+
+# 4. ビルド結果を記録する（変更が無い場合は「nothing to commit」と出るだけで問題なし）
+git add src/public/build
+git commit -m "本番用ビルドを更新" src/public/build
+
+# 5. GitHub へ送る
 git push origin main
 ```
 
-> テストで `failed` が出たら、送らずに原因を直してください。React・CSS のビルドはサーバーで行うので、手元でのビルドは不要です。
+| 手順 | 注意 |
+|---|---|
+| 2. テスト | `failed` が出たら、送らずに原因を直してください。 |
+| 3. ビルド | **毎回必ず実行してください。** サーバーではビルドしないため、ここで作った CSS・JavaScript がそのまま本番で使われます。忘れると、React（予約フォーム・カレンダー等）や見た目の修正が本番に反映されません。 |
+| 4. ビルド結果の記録 | 最後の `src/public/build` の指定で、ビルド結果だけを記録します（他の変更が混ざらない）。 |
+| 5. 送信 | 送っただけでは本番は変わりません。続けてサーバーで反映します（5-2）。 |
 
 ### 5-2. サーバー（取り込み・反映）
 
@@ -436,13 +423,11 @@ ssh -p 2222 アカウント名@ssh.lolipop.jp
 cd ~/web/mellow/src
 
 php artisan down --retry=30                         # 1. メンテナンス表示にする
-git pull                                            # 2. GitHub から取り込む
+git pull                                            # 2. GitHub から取り込む（ビルド結果も届く）
 composer install --no-dev --optimize-autoloader     # 3. PHPのライブラリを更新
-npm ci                                              # 4. ビルド用の道具を更新
-npm run build                                       # 5. React・CSS をビルド
-php artisan migrate --force                         # 6. データベースの変更を反映
-php artisan optimize                                # 7. キャッシュを作り直す
-php artisan up                                      # 8. メンテナンス表示を解除
+php artisan migrate --force                         # 4. データベースの変更を反映
+php artisan optimize                                # 5. キャッシュを作り直す
+php artisan up                                      # 6. メンテナンス表示を解除
 
 exit
 ```
@@ -451,10 +436,9 @@ exit
 |---|---|
 | 1. メンテナンス表示 | 作業中にアクセスした人には「メンテナンス中」と表示されます。**途中でエラーが出ても、最後に必ず `php artisan up` を実行してください**（忘れるとメンテナンス表示のままになります）。 |
 | 2. 取り込み | `Already up to date.` と出たら、送った内容がまだ GitHub に無い（手元で `git push` したか確認）。 |
-| 3〜4. ライブラリ | 変更が無ければすぐ終わります。`npm ci` は毎回入れ直すため1分ほどかかります。 |
-| 5. ビルド | `✓ built in ...` と出れば成功。**毎回必ず実行してください**（忘れると React や見た目の修正が反映されません）。 |
-| 6. データベース | 変更が無ければ `Nothing to migrate.` と出ます。`--seed` は付けない。 |
-| 7. キャッシュ | `.env` を変えたときも、これを実行すると反映されます。 |
+| 3. ライブラリ | 変更が無ければすぐ終わります。 |
+| 4. データベース | 変更が無ければ `Nothing to migrate.` と出ます。`--seed` は付けない。 |
+| 5. キャッシュ | `.env` を変えたときも、これを実行すると反映されます。 |
 
 `.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
 
@@ -465,7 +449,7 @@ exit
 ```bash
 git log --oneline              # 取り消したい記録のIDを確認
 git revert 記録のID             # その変更を打ち消す記録を作る
-# このあと 5-1 の手順 2〜3（テスト・git push）→ 5-2（サーバー）
+# このあと 5-1 の手順 2〜5（テスト・ビルド・記録・git push）→ 5-2（サーバー）
 ```
 
 ---
@@ -475,17 +459,15 @@ git revert 記録のID             # その変更を打ち消す記録を作る
 | 症状 | 主な原因と対処 |
 |---|---|
 | 「メンテナンス中」のまま戻らない | `cd ~/web/mellow/src && php artisan up` で解除する。そのあと、途中で止まった手順から続きを実行する。 |
-| `php` `composer` `npm` が「command not found」 | 4-5 ④の設定が読み込まれていない。`source ~/.bash_profile` を実行する（次回ログインからは自動）。 |
-| `php -v` が古いバージョンを表示する | 4-5 ②の近道（`~/web/mellow/.tools/bin/php`）と4-5 ④の設定を確認する。 |
+| `php` `composer` が「command not found」 | 4-5 ③の設定が読み込まれていない。`source ~/.bash_profile` を実行する（次回ログインからは自動）。 |
+| `php -v` が古いバージョンを表示する | 4-5 ②の近道（`~/web/mellow/.tools/bin/php`）と4-5 ③の設定を確認する。 |
 | `ssh -T git@github.com` で接続できない | 4-3 の `~/.ssh/config` と、GitHub のデプロイキーの登録を確認する。`ssh -vT git@github.com` で詳しい原因が表示される。 |
 | `git clone`・`git pull` で「Permission denied (publickey)」 | デプロイキーが登録されていない、または別のリポジトリに登録している。 |
 | `git pull` で失敗する | サーバー上でファイルを編集した可能性がある。`cd ~/web/mellow && git status` で確認し、`git checkout -- .` で元に戻してから再実行する（`.env` は消えない）。 |
 | `git push`（手元）が「rejected」で失敗する | GitHub 側に手元に無い記録がある（別のパソコンで送った等）。`git pull` してから再実行する。 |
-| `composer install` で失敗する | 通信エラーなら再実行する。メモリ不足と表示される場合は、`echo $COMPOSER_MEMORY_LIMIT` で `-1` と出るか確認する（4-5 ④）。 |
-| `node -v`・`npm ci` で「GLIBC_2.xx not found」 | サーバーのOSが古く Node.js が動かない。[7章](#7-付録-サーバーで-nodejs-が動かない場合) の方法に切り替える。 |
-| `npm ci` が途中で止まる・失敗する | 通信エラーなら再実行する。`Killed` と出る場合はメモリ不足の可能性があるため、時間をおいて再実行するか、[7章](#7-付録-サーバーで-nodejs-が動かない場合) の方法に切り替える。 |
-| `npm run build` が失敗する | 表示されたエラーを確認する。手元（`docker compose run --rm --no-deps node npm run build`）でも失敗するならプログラムの問題なので、手元で直して送り直す。 |
-| デザインが崩れる・React の修正が反映されない | `npm run build` を実行し忘れた可能性がある。5-2 の手順 5・7 を実行する。 |
+| `composer install` で失敗する | 通信エラーなら再実行する。メモリ不足と表示される場合は、`echo $COMPOSER_MEMORY_LIMIT` で `-1` と出るか確認する（4-5 ③）。 |
+| デザインが崩れる・React の修正が反映されない | 手元でビルドして記録するのを忘れた可能性がある。手元で 5-1 の手順 3〜5（ビルド・記録・`git push`）を行い、サーバーで 5-2 を実行する。 |
+| 手元の `git pull` で `src/public/build` が競合（conflict）する | 別の人のビルド結果とぶつかっただけです。手元で `docker compose run --rm --no-deps node npm run build` でビルドし直し、`git add src/public/build` してから記録（`git commit`）を続けてください。 |
 | 「500 Server Error」と表示される | `~/web/mellow/src/storage/logs/` のログを確認する。よくある原因: `.env` の値の誤り・`APP_KEY` が空・PHPのバージョンが8.4未満（「PHP設定」を確認）・`vendor` が無い（`composer install` の実行忘れ）。 |
 | フォーム送信で「送信できませんでした」 | ログを確認。メール設定（`MAIL_HOST`・`MAIL_PORT`・`MAIL_SCHEME`・パスワード）の誤りが多い。 |
 | フォーム送信や管理画面の保存が「403 Forbidden」になる | ロリポップの **WAF**（不正アクセス防止機能）が送信内容を誤って遮断している可能性がある。ユーザー専用ページの「WAF設定」でログを確認する。 |
@@ -494,26 +476,6 @@ git revert 記録のID             # その変更を打ち消す記録を作る
 | `git clone` で「already exists and is not an empty directory」 | `~/web/mellow` が既にある。中身を確認し、`mv ~/web/mellow ~/web/mellow-old` で退避してから取り込み直す。 |
 
 ログの場所: `~/web/mellow/src/storage/logs/laravel-YYYY-MM-DD.log`
-
----
-
-## 7. 付録: サーバーで Node.js が動かない場合
-
-サーバーのOSが古く Node.js が動かない場合は、**React・CSS のビルドだけ手元で行い、できたファイル（`src/public/build`）をサーバーへ送ります**。それ以外の手順（Composer・artisan）は変わりません。
-
-**初回**：4-5 は ①・②・④（Node.js の行を除く）・⑤ の `php -v`・`composer -V` まで行い、4-6 は `composer install` だけを実行します。そのあと、下の「手元でビルドして送る」を行ってから 4-7 に進みます。
-
-**更新時**：5-2 の手順 4（`npm ci`）・5（`npm run build`）の代わりに、下の「手元でビルドして送る」を行います（5-2 の手順 2 の `git pull` のあと、手順 6 の前）。
-
-**手元でビルドして送る**（手元のMacで実行）
-
-```bash
-cd ~/work/mellow
-docker compose run --rm --no-deps node npm run build
-scp -P 2222 -r src/public/build アカウント名@ssh.lolipop.jp:~/web/mellow/src/public/
-```
-
-> 送ったあとは、サーバーで `php artisan optimize` を実行してください。
 
 ---
 
@@ -526,4 +488,5 @@ scp -P 2222 -r src/public/build アカウント名@ssh.lolipop.jp:~/web/mellow/s
 | `src/app/Http/Middleware/RedirectToCanonicalHost.php` | 本番で `APP_URL` 以外のURLからのアクセスを `APP_URL` へ転送する |
 | `src/config/pages.php` の `redirects` | 旧URL（`/bb/〇〇`）から新しいページへの転送の対応表 |
 | `src/composer.json`・`composer.lock` | PHP のライブラリの一覧と版（`composer install` が参照） |
-| `src/package.json`・`package-lock.json` | ビルド用の道具の一覧と版（`npm ci` が参照） |
+| `src/public/build/` | 手元でビルドした CSS・JavaScript（Git に記録して送る） |
+| `src/package.json`・`package-lock.json` | ビルド用の道具の一覧と版（手元のビルドで使用） |

@@ -1,0 +1,1 @@
+var e=e=>e.toLocaleDateString(`sv-SE`);function t(e){let t=new Date(e.getFullYear(),e.getMonth()+1,0).getDate();return[...Array(e.getDay()).fill(null),...Array.from({length:t},(t,n)=>new Date(e.getFullYear(),e.getMonth(),n+1))]}var n=[`日`,`月`,`火`,`水`,`木`,`金`,`土`],r={am:`午前`,pm:`午後`};export{e as i,n,t as r,r as t};

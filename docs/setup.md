@@ -199,6 +199,7 @@ docker compose exec app php artisan migrate                  # 4. データベ�
 - 作業の前に `git pull`、ひと区切りしたら記録して `git push` する（溜め込まない）。
 - `git push` が「rejected」で失敗したら、`git pull` してからもう一度 `git push` する。
 - 同じファイルを同時に直すと「競合（conflict）」が起きることがあります。どう直せばよいか分からない場合は、無理に進めず管理者に相談してください。
+- 本番用のビルド結果（`src/public/build`）が競合した場合は、自分でビルドし直せば解決します（`docker compose run --rm --no-deps node npm run build` → `git add src/public/build` → 記録を続ける）。
 - `.env`（自分のパソコンの設定）は Git に記録されません。パスワードなどを他のファイルに書かないでください。
 
 ---
@@ -210,7 +211,7 @@ docker compose exec app php artisan migrate                  # 4. データベ�
 | 「Cannot connect to the Docker daemon」 | Docker Desktop が起動していない。起動してから再実行する。 |
 | 「port is already allocated」（ポートが使われている） | 他のアプリが同じ番号を使っている。下の「ポートを変える」を参照。 |
 | ページのデザインが崩れる（文字だけになる） | Node.js の準備中か停止している。`docker compose ps` で `node` が動いているか確認し、`docker compose logs node` でエラーを確認する。`docker compose restart node` で再起動。 |
-| 「Vite manifest not found」と表示される | Node.js（開発サーバー）が動いていない。`docker compose up -d` で起動する。 |
+| 直したデザインや React の変更が表示に反映されない | Node.js（開発サーバー）が止まっていて、Git に記録された本番用のビルド結果が表示されている。`docker compose ps` で `node` が動いているか確認し、`docker compose up -d` で起動する。 |
 | 「Connection refused」「SQLSTATE」 | データベースが起動中。10〜20秒おいて再実行する。続く場合は `docker compose ps` で `db` が動いているか確認。 |
 | 「No application encryption key」 | 4 の手順 5（`key:generate`）を実行していない。 |
 | 「Class ... not found」 | ライブラリが古い。`docker compose run --rm --no-deps app composer install` を実行する。 |

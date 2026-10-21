@@ -1,7 +1,7 @@
 # macOS
 .DS_Store
 
-# 本番サーバーに手動で入れる Composer・Node.js（docs/deploy.md）
+# 本番サーバーに手動で入れる Composer（docs/deploy.md）
 /.tools/
 
 # 各自のパソコンのポート設定（docs/setup.md）

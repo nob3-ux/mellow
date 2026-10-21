@@ -13,7 +13,7 @@
   - 整形: `docker compose exec -T app vendor/bin/pint --dirty`
   - フロントのビルド: `docker compose run --rm --no-deps node npm run build`（開発中は `docker compose up -d` で node コンテナが `npm run dev` を起動する）
 - サービス: web（Nginx, http://localhost:8000）/ app（PHP-FPM）/ node（Vite, :5173）/ db（MySQL 8.4）/ phpmyadmin（http://localhost:8080）/ mailpit（http://localhost:8025）。
-- 本番はロリポップ（共用レンタルサーバー）の `https://ps-mellow.jp/`。SSR や Node 常駐を前提にした仕組みは使わない。デプロイは GitHub 経由ですべて手動（スクリプトは使わない）：手元で記録 → テスト → `git push`、サーバーで `php artisan down` → `git pull` → `composer install --no-dev` → `npm ci` → `npm run build` → `php artisan migrate --force` → `php artisan optimize` → `php artisan up`。Composer・Node.js はサーバーの `~/web/mellow/.tools/` に手動で入れる。ビルド結果 `public/build` は Git に記録しない（サーバーでビルドする）。手順は `../docs/deploy.md`。本番はリポジトリ全体を `~/web/mellow` に置き、公開フォルダは `mellow/src/public`。リポジトリ直下の `.htaccess` で src/public 以外を拒否し、`RedirectToCanonicalHost` で APP_URL 以外のホストを転送する。
+- 本番はロリポップ（共用レンタルサーバー）の `https://ps-mellow.jp/`。SSR や Node 常駐を前提にした仕組みは使わない。デプロイは GitHub 経由ですべて手動（スクリプトは使わない）：手元で記録 → テスト → `npm run build` → `src/public/build` を記録 → `git push`、サーバーで `php artisan down` → `git pull` → `composer install --no-dev` → `php artisan migrate --force` → `php artisan optimize` → `php artisan up`。サーバーに Node.js は入れない（ビルドは手元のみ）。Composer はサーバーの `~/web/mellow/.tools/` に手動で入れる。ビルド結果 `public/build` は Git に記録する。手順は `../docs/deploy.md`。本番はリポジトリ全体を `~/web/mellow` に置き、公開フォルダは `mellow/src/public`。リポジトリ直下の `.htaccess` で src/public 以外を拒否し、`RedirectToCanonicalHost` で APP_URL 以外のホストを転送する。
 - 旧WordPress（`/bb/` 以下）のURLは `config/pages.php` の `redirects` で新しいページへ301転送する。
 
 ## 構成

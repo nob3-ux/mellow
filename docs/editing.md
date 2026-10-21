@@ -28,11 +28,11 @@ PHOTO STUDIO MELLOW のサイトで、文章・料金・写真・メニューな
 ③ ブラウザで確認する       http://localhost:8000 （保存すると自動で再読み込み）
 ④ 自動テストを実行する     7章
 ⑤ Gitに記録する            git commit（9章「変更の履歴」）
-⑥ GitHub に送る            git push（8章）
-⑦ 本番に反映する           サーバーで git pull → composer → npm（ビルド）→ artisan（8章）
+⑥ GitHub に送る            本番用ビルド → ビルド結果を記録 → git push（8章）
+⑦ 本番に反映する           サーバーで git pull → composer → artisan（8章）
 ```
 
-修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑦でサーバー上で行います。
+修正中は**ビルド不要**です。保存するとブラウザに自動で反映されます。本番用のビルドは、⑥で GitHub に送る前に手元で1回だけ行います。
 
 ---
 
@@ -113,7 +113,7 @@ mellow/
     ├── database/               ⚠️ データベースの構造・初期データ
     ├── tests/                  ⚠️ 自動テスト
     ├── public/images/          🚫 変換済みの写真（npm run images が作る）
-    ├── public/build/           🚫 ビルド結果（npm run build が作る。Gitには記録しない）
+    ├── public/build/           🚫 本番用のビルド結果（npm run build が作る。Gitに記録して送る）
     ├── public/hot              🚫 開発サーバーの目印（記録されない）
     ├── vendor/  node_modules/  🚫 ライブラリ（自動でインストールされる）
     ├── storage/  bootstrap/cache/  🚫 ログ・キャッシュ
@@ -125,7 +125,7 @@ mellow/
 **特に注意すること**
 
 - `src/public/images/` の写真を直接置き換えたり、`images.json` を手で編集したりしないでください。写真は必ず `src/resources/images/` に置いて `npm run images` で変換します（[5-4](#5-4-写真を追加差し替える)）。
-- `src/public/build/` は `npm run build` が作り直します。手で編集しないでください（本番ではサーバーでビルドします）。
+- `src/public/build/` は `npm run build` が作り直します。手で編集しないでください。
 - 本番サーバー上のファイルは直接編集しないでください。修正は必ず手元で行い、GitHub 経由で反映します（直接編集すると次の `git pull` が失敗します）。
 - `views/components/` の部品を直すと、その部品を使っている**全ページ**が変わります。
 
@@ -521,7 +521,14 @@ git commit -m "七五三の料金を変更"
 # 2. 自動テスト（failed が無いことを確認）
 docker compose exec app php artisan test --compact
 
-# 3. GitHub へ送る
+# 3. React・CSS を本番用にビルドする
+docker compose run --rm --no-deps node npm run build
+
+# 4. ビルド結果を記録する（変更が無い場合は「nothing to commit」と出るだけで問題なし）
+git add src/public/build
+git commit -m "本番用ビルドを更新" src/public/build
+
+# 5. GitHub へ送る
 git push origin main
 ```
 
@@ -529,11 +536,13 @@ git push origin main
 |---|---|
 | 1. 記録 | VS Code の「ソース管理」から記録しても同じです（9章）。 |
 | 2. テスト | 全ページの表示・フォーム・旧URLの転送などを自動で確認します。`failed` が出たら、送らずに原因を直してください（7章）。 |
-| 3. 送信 | GitHub へ送ります。送っただけでは本番は変わりません（続けて 8-3）。React・CSS のビルドはサーバーで行うので、手元でのビルドは不要です。 |
+| 3. ビルド | React・CSS を本番用に変換して `src/public/build/` に出力します。**毎回必ず実行してください。** 本番サーバーではビルドしないため、忘れると React（予約フォーム・カレンダー等）や見た目の修正が本番に反映されません。 |
+| 4. ビルド結果の記録 | 最後の `src/public/build` の指定で、ビルド結果だけを記録します（他の変更が混ざらない）。 |
+| 5. 送信 | GitHub へ送ります。送っただけでは本番は変わりません（続けて 8-3）。 |
 
 ### 8-2. 送った内容を確認する（任意）
 
-GitHub のリポジトリのページで、最新の記録（「七五三の料金を変更」など）が表示されていれば送信できています。
+GitHub のリポジトリのページで、最新の記録（「本番用ビルドを更新」など）が表示されていれば送信できています。
 
 ### 8-3. 本番に反映する（サーバー）
 
@@ -542,19 +551,16 @@ ssh -p 2222 アカウント名@ssh.lolipop.jp
 cd ~/web/mellow/src
 
 php artisan down --retry=30                         # 1. メンテナンス表示にする
-git pull                                            # 2. GitHub から取り込む
+git pull                                            # 2. GitHub から取り込む（ビルド結果も届く）
 composer install --no-dev --optimize-autoloader     # 3. PHPのライブラリを更新
-npm ci                                              # 4. ビルド用の道具を更新
-npm run build                                       # 5. React・CSS をビルド
-php artisan migrate --force                         # 6. データベースの変更を反映
-php artisan optimize                                # 7. キャッシュを作り直す
-php artisan up                                      # 8. メンテナンス表示を解除
+php artisan migrate --force                         # 4. データベースの変更を反映
+php artisan optimize                                # 5. キャッシュを作り直す
+php artisan up                                      # 6. メンテナンス表示を解除
 
 exit
 ```
 
 - 作業中はサイトに「メンテナンス中」と表示されます。**途中でエラーが出ても、最後に必ず `php artisan up` を実行してください。**
-- 手順 5（ビルド）は**毎回必ず実行してください。** 忘れると React（予約フォーム・カレンダー等）や見た目の修正が反映されません。
 - `.env`・ログ・データベース（空き状況・管理者）はそのまま残ります。
 - 各コマンドの意味やエラーへの対処は [deploy.md の5章・6章](deploy.md#5-2回目以降の更新手順) を参照してください。
 
@@ -571,7 +577,7 @@ Git の記録を使って、問題のある変更を取り消してから、も�
 ```bash
 git log --oneline                    # 記録の一覧から、取り消したい記録のIDを確認
 git revert 記録のID                   # その変更を打ち消す記録を作る
-# このあと 8-1 の手順 2〜3（テスト・git push）→ 8-3 で反映
+# このあと 8-1 の手順 2〜5（テスト・ビルド・記録・git push）→ 8-3 で反映
 ```
 
 > どの記録を取り消せばよいか分からない場合は、Claude Code に「さっき公開した〇〇の変更を元に戻したい」と頼んでください。
@@ -594,7 +600,7 @@ git revert 記録のID                   # その変更を打ち消す記録を�
 
 このプロジェクトは **Git** で変更の履歴を管理しています。修正がひと区切りしたら「記録（コミット）」しておくと、あとで元に戻したり、いつ何を変えたかを確認したりできます。
 
-> `.env`（パスワード類）・`vendor`・`node_modules`・`public/build`（ビルド結果）・`public/hot` は記録しない設定になっています。
+> `.env`（パスワード類）・`vendor`・`node_modules`・`public/hot` は記録しない設定になっています。本番用のビルド結果（`public/build`）は記録します。
 
 **VS Code で操作する場合**（左端の「ソース管理」アイコン）
 
